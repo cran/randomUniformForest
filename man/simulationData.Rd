@@ -1,11 +1,11 @@
 \name{simulationData} 
 \alias{simulationData}
 %- Also NEED an '\alias' for EACH other topic documented here.
-\title{Simulation of gaussian vector
+\title{Simulation of Gaussian vector
 }
 
 \description{
- Simulate a gaussian vector with 'p' independent components of length 'n'. Parameters of each component are uniformly random and are taken between -10 and 10, with (absolute) standard deviation equals mean.
+ Simulate a Gaussian vector with 'p' independent components of length 'n'. Parameters of each component are uniformly random and are taken between -10 and 10, with (absolute) standard deviation equals mean.
 }
 
 \usage{
@@ -20,7 +20,7 @@ simulationData(n, p, distrib = rnorm, colinearity = FALSE)
     number of variables to draw.
 }
  \item{distrib}{
-   distribution to use. Currently only gaussian one is supported.
+   distribution to use. Currently only Gaussian one is supported.
 }
  \item{colinearity}{
     not currently used.

@@ -99,19 +99,46 @@ factor2vector = function(d)
 	{ return(list(vector = as.vector(d), factors = NA)) }
 }
 
-which.is.factor <- function(X, maxClasses = 10, count = FALSE) 
+which.is.factor <- function(X, maxClasses = floor(0.01*min(3000, nrow(X))+2), count = FALSE) 
 {
 	p = ncol(X)
 	n = nrow(X)
 	values = rep(0,p)
+	options(warn = -1)
 	
 	for (j in 1:p) 
 	{ 
-		countValues <- length(unique(X[,j]))
-		if (is.factor(X[,j])) 
+		flag = FALSE
+		uniqueValues = unique(X[,j])
+		countValues <- length(uniqueValues)
+				
+		if (is.factor(X[,j]))
 		{ 
-			if (count) { values[j] = countValues }
-			else {  values[j] = 1 	}
+			XLevels = levels(uniqueValues)
+			checkThis = which(XLevels == "?")
+			if (length(checkThis) > 0) { XLevels =  XLevels[-checkThis] }
+
+			checkNA = which(is.na(XLevels))
+			if (length(checkNA) > 0) { XLevels =  XLevels[-checkNA] }
+			
+			factorAsNumeric <- rmNA(as.numeric(XLevels))
+			
+			if (length(factorAsNumeric) == 0) { flag = TRUE }
+			else
+			{
+				if (!is.double(factorAsNumeric))
+				{ 
+					if ( (max(factorAsNumeric) - min(factorAsNumeric)) == (countValues - 1) )	{	flag  = TRUE  }
+					
+					if (countValues <= maxClasses) 	{  flag = TRUE }
+				}
+			}			
+						
+			if (flag) 
+			{
+				if (count) { values[j] = countValues }
+				else {  values[j] = 1 	}	
+			}
 		}
 		else
 		{
@@ -123,9 +150,11 @@ which.is.factor <- function(X, maxClasses = 10, count = FALSE)
 		} 	
 	}
 	names(values) = colnames(X)
+	options(warn = 0)
 	
 	return(values)
 }
+
 
 # MATRIX
 factor2matrix = function(X, threads = "auto")
@@ -170,7 +199,7 @@ factor2matrix = function(X, threads = "auto")
 			registerDoParallel(Cl)
 			chunkSize  <-  ceiling(np[2]/getDoParWorkers())
 			smpopts  <- list(chunkSize  =  chunkSize)
-						
+			Z = matrix(NA, np[1], np[2])			
 			Z <- foreach(j =1:np[2], .export = "factor2vector", .options.smp = smpopts, .combine = cbind) %dopar%
 			{
 				if (is.character(X[,j]))	{ X[,j] = as.factor(X[,j]) }
@@ -178,12 +207,22 @@ factor2matrix = function(X, threads = "auto")
 			}
 			
 			colnames(Z) <- colnames(X)
-				
 			stopCluster(Cl)
 			
 			return(as.true.matrix(Z))
 		}
 	}
+}
+
+matrix2factor2 <- function(X, maxClasses = 10)
+{
+	idx = which.is.factor(X,maxClasses = maxClasses)
+	factors = which(idx != 0)
+	if (length(factors > 0))
+	{	for (i in 1:length(factors)) {	X[,factors[i]] = as.factor(X[,factors[i]])	}	}
+	else 
+	{ cat("No variable found as categorical. Please try to increase number of classes.\n") }
+	return(X)
 }
 
 NAfactor2matrix =function(X, toGrep = "")
@@ -1370,12 +1409,13 @@ outputPerturbationSampling = function(Y, whichClass = 1, sampleSize = 1/4, regre
 	
 	if (regression)
 	{
-		randomIdx = sample(1:n, floor(sampleSize*n), replace = TRUE)
+		randomIdx =  sample(1:n, min(n, floor(sampleSize*n) + 1), replace = TRUE)
 		meanY <- sum(Y[randomIdx])/length(Y[randomIdx])
-		minY = min(Y)
-		maxY = max(Y)
+		minY <- min(Y)
+		maxY <- max(Y)
 		
-		sdY <- if (sum(abs(Y[randomIdx])) == 0) { 0.01 } else { sd(Y[randomIdx]) }
+		sdY <- if (sum(abs(Y[randomIdx])) == 0) { 0.01 } else { max(0.01, sd(Y[randomIdx])) }
+			
 			
 		randomData = rnorm(length(randomIdx), meanY, 3*sdY)
 		if ( (minY < 0) & (maxY > 0)) 
@@ -1404,12 +1444,11 @@ outputPerturbationSampling = function(Y, whichClass = 1, sampleSize = 1/4, regre
 
 keep.index <- function(X,idx) if (!is.null(dim(X))) { (1:nrow(X))[idx] } else  { (1:length(X))[idx] }
 
-
-roc.curve <- function(X, Y, classes, positive = classes[2], ranking.threshold = 0, ranking.values = 0, falseDiscoveryRate = FALSE, 
-plotting = TRUE, Beta = 1)
+roc.curve <- function(X, Y, classes, positive = classes[2], ranking.threshold = 0, ranking.values = 0, falseDiscoveryRate = FALSE, plotting = TRUE,  printValues = TRUE, Beta = 1)
 {
 	#require(pROC)
 	par(bg = "white")
+	classes = sort(classes)
 	
 	if (length(classes) != 2)
 	{ stop("Please provide two classes for plotting ROC curve.") }
@@ -1441,122 +1480,232 @@ plotting = TRUE, Beta = 1)
 	classes = newClasses	
 	
 	if (falseDiscoveryRate)
-	{	
-		if (is.vector(X) & !(is.list(X)))
-		{ stop("Please provide full prediction object, using type = 'all' when calling predict() function") }
-		
-		class.object = if (!is.null(X$all.votes)) {  majorityClass(X$all.votes, classes) } else { majorityClass(X$OOB.votes,classes) }  
-		pred.classes = if (!is.null(X$majority.vote)) { X$majority.vote } else {X$OOB.predicts }
-		class.probas = (class.object$class.counts/rowSums(class.object$class.counts))[,1]
+	{		
+		if (is.list(X))
+		{
+			class.object = if (!is.null(X$all.votes)) { majorityClass(X$all.votes, classes) } 
+			else { majorityClass(X$OOB.votes, classes) }  
+			pred.classes = if (!is.null(X$majority.vote)) { X$majority.vote } else { X$OOB.predicts }
+			class.probas = (class.object$class.counts/rowSums(class.object$class.counts))[,1]
+		}
+		else
+		{  
+			class.probas = 0.5; 
+			pred.classes = X 
+			
+			if (length(X) != length(Y))
+			{ stop("X is not a vector, or length of X and Y are not the same.\n") }
+		}
 	}
 	else
 	{ 	
-		pred.classes = if (is.numeric(X)) {  X } 
+		pred.classes = if (is.numeric(X)) { X } 
 		else 
 		{  
-			if (!is.null(X$all.votes))
-			{ 	X$majority.vote }
-			else
-			{  	X$OOB.predicts }	
+			if (!is.null(X$all.votes))	{ X$majority.vote }
+			else  {	X$OOB.predicts }	
 		}
 		class.probas = ranking.values;   
 		ranking.threshold = 0 
 	}
 		
 	pos.idx = which(pred.classes == positive & class.probas >=  ranking.threshold )
-	conf.mat = confusion.matrix(pred.classes,Y)
-	n2 = diag(conf.mat[,-ncol(conf.mat)])[nrow(conf.mat)] # true positives
-	n1 = length(pos.idx) - n2		# false positives
-	n3 = conf.mat[1,2]	# false negatives
-	n4 = conf.mat[1,1]   # true negatives
+	n_pos.idx = length(pos.idx)
 	
-	if (falseDiscoveryRate)
+	if (n_pos.idx == 0)
 	{
-	   	VP = array(0, length(pos.idx)+1)
-		FP = array(1, length(pos.idx)+1)
-
-		for(i in 1:length(pos.idx))
-		{
-			if(pred.classes[pos.idx[i]] == Y[pos.idx[i]] )
-			{	VP[i+1] = VP[i] + 1/(n2 + n3); FP[i+1] = FP[i]	}
-			else
-			{	FP[i+1] = FP[i] - 1/(n1 + n2);  VP[i+1] = VP[i] }
-		}
-		FP.new = c(FP,0)
-		VP.new = c(VP,1)
+		cat("No positive case found.\n")
+		return(list(cost = 0, threshold = ranking.threshold, accuracy = 0, expected.matches = 0))
 	}
 	else
 	{
-		# for ROC curve : VP rate = Sensitivity = VP/(VP + FN) ;  specificity = VN/(VN + FP) = 1 - FP rate 
-		# and Sensitivity = True positives among all; Specificity = True negatives among all
-		# plot True positive rate on false positive rate	
-		VP = FP = array(0, length(pos.idx)+1)
+		conf.mat = confusion.matrix(pred.classes,Y)
+		n2 = diag(conf.mat[,-ncol(conf.mat)])[nrow(conf.mat)] # true positives
+		n1 = length(pos.idx) - n2		# false positives
+		n3 = conf.mat[1,2]	# false negatives
+		n4 = conf.mat[1,1]   # true negatives
 		
-		for(i in 1:length(pos.idx))
+		inv_n23 = 1/(n2 + n3)
+		inv_n12 = 1/(n1 + n2)
+		if (falseDiscoveryRate)
 		{
-			if(pred.classes[pos.idx[i]] == Y[pos.idx[i]] )
-			{	VP[i+1] = VP[i] + 1/(n2 + n3 ); FP[i+1] = FP[i]	}
-			else
-			{	FP[i+1] = FP[i] + 1/(n1 + n4);  VP[i+1] = VP[i] }
-		}
-		FP.new = c(FP,1)
-		VP.new = c(VP,1)
-	}
-		
-	AUC.est = round(pROC::auc(Y, pred.classes),4)
-	
-	if (plotting)
-	{
-		if (ranking.threshold == 0)
-		{	
-			F1.est = fScore(conf.mat, Beta = Beta)
+			VP = array(0, n_pos.idx+1)
+			FP = array(1, n_pos.idx+1)
+
+			for(i in 1:n_pos.idx)
+			{
+				if (pred.classes[pos.idx[i]] == Y[pos.idx[i]])	{ VP[i+1] = VP[i] + inv_n23; FP[i+1] = FP[i] }
+				else  {	FP[i+1] = FP[i] - inv_n12;  VP[i+1] = VP[i] }
+			}
+			FP.new = c(FP,0)
+			VP.new = c(VP,1)
 			
-			if(!falseDiscoveryRate)
-			{
-				plot(FP.new, VP.new, xlab = "False Positive rate [1 - Specificity]", ylab = "Sensitivity [True Positive rate]", 
-				type='l', col = sample(1:10,1), lwd = 2)
-				title(main = "ROC curve", sub = paste("AUC: ",  AUC.est, ". Sensitivity: ", round(100*VP.new[length(pos.idx)+1],2), "%",
-				". False Positive rate: ", round(100*FP.new[length(pos.idx)+1],2), "%", sep=""), col.sub = "blue", cex.sub = 0.85)
-				points(c(0,1), c(0,1), type='l')
-				abline(v = FP.new[length(pos.idx)+1], col='purple', lty = 3)
-				abline(h = VP.new[length(pos.idx)+1],col='purple', lty = 3)
-				cat("AUC: ",  AUC.est, "\n")
+			n_pos = length(VP.new)
+			aupr = rep(0,n_pos)
+			for (j in 2:n_pos)
+			{	
+				DV = (VP.new[j] - VP.new[j-1])
+				DF = (FP.new[j-1] - FP.new[j] )
+				#DF = (1-FP.new[j] - (1-FP.new[j-1]))
+				aupr[j] = { (1 -  VP.new[j])*DF + 0.5*DV*DF }
 			}
-			else
-			{
-				plot(VP.new, FP.new, xlab = "Sensitivity [True Positive rate]", ylab = "Precision [1 - False Discovery rate ]", 
-				type='l', col = sample(1:10,1), lwd = 2)
-				title(main = "Precision-Recall curve", sub = paste("\nProbability of positive class", " > ", 0.5, ". Precision: ", 
-				round(100*FP.new[length(pos.idx)+1],2), "%", ". Sensitivity: ", round(100*VP.new[length(pos.idx)+1],2), "%",  
-				". F", Beta, "-Score: ", round(F1.est,4), sep = ""), col.sub = "blue", cex.sub = 0.85)
-				points(c(0,1), c(1,0), type='l')
-				abline(v = VP.new[length(pos.idx)+1], col='purple', lty = 3)
-				abline(h = FP.new[length(pos.idx)+1], col='purple', lty = 3)
-			}
-			#grid()
-			cat("F1 score: ", F1.est, "\n")
-			print(conf.mat)
+			aupr = 1- sum(aupr)
 		}
 		else
-		{	
-			pred.classes[-pos.idx] = classes[-which(classes == positive)]
-			conf.mat = confusion.matrix(pred.classes,Y)
-			cat("F1 ", F1.est, "\n")
-			print(conf.mat)
-			plot(VP.new, FP.new, xlab = "Sensitivity [1 - True positives Rate]", ylab = "Precision [1 - False Discovery Rate]", 
-			main = paste("Precision-recall curve ", "[Probability of positive class", " > ", ranking.threshold, "]", sep=""), type='l', col = sample(1:10,1), lwd = 2)
-			points(c(0,1), c(1,0), type='l')
-			abline(v = VP.new[length(pos.idx)+1], col='purple', lty = 3)
-			abline(h = FP.new[length(pos.idx)+1],col='purple', lty = 3)
-			#grid()
+		{
+			# for ROC curve : VP rate = Sensitivity = VP/(VP + FN) ;  specificity = VN/(VN + FP) = 1 - FP rate 
+			# and Sensitivity = True positives among all; Specificity = True negatives among all
+			VP = FP = array(0, n_pos.idx+1)
+			inv_n14 = 1/(n1 + n4)
+			for(i in 1:n_pos.idx)
+			{
+				if(pred.classes[pos.idx[i]] == Y[pos.idx[i]] )
+				{	VP[i+1] = VP[i] + inv_n23; FP[i+1] = FP[i]	}
+				else
+				{	FP[i+1] = FP[i] + inv_n14;  VP[i+1] = VP[i] }
+			}
+			FP.new = c(FP,1)
+			VP.new = c(VP,1)
+			AUC.est = round(pROC::auc(Y, pred.classes ),4)
 		}
+			
+		if (plotting)
+		{
+			if (ranking.threshold == 0)
+			{	
+				F1.est = fScore(conf.mat, Beta = Beta)
+				
+				if(!falseDiscoveryRate)
+				{
+					plot(FP.new, VP.new, xlab = "False Positive rate [1 - Specificity]", ylab = "Sensitivity [True Positive rate]", 
+					type='l', col = sample(1:10,1), lwd = 2)
+					title(main = "ROC curve", sub = paste("AUC: ",  AUC.est, ". Sensitivity: ", round(100*VP.new[length(pos.idx)+1],2), "%",
+					". False Positive rate: ", round(100*FP.new[length(pos.idx)+1],2), "%", sep=""), col.sub = "blue", cex.sub = 0.85)
+					points(c(0,1), c(0,1), type='l', col='grey')
+					abline(v = FP.new[length(pos.idx)+1], col='purple', lty = 3)
+					abline(h = VP.new[length(pos.idx)+1],col='purple', lty = 3)
+					if (printValues) { cat("AUC: ",  AUC.est, "\n") }
+				}
+				else
+				{
+					plot(VP.new, FP.new, xlab = "Sensitivity [True Positive rate]", ylab = "Precision [1 - False Discovery rate ]", 
+					type='l', col = sample(1:10,1), lwd = 2)
+					title(main = "Precision-Recall curve", sub = paste("\nProbability of positive class", " > ", 0.5, ". Precision: ", 
+					round(100*FP.new[length(pos.idx)+1],2), "%", ". Sensitivity: ", round(100*VP.new[length(pos.idx)+1],2), "%",  ". F", Beta, "-Score: ", round(F1.est,4), ". AUPR: ", round(aupr, 4), sep = ""), col.sub = "blue", cex.sub = 0.85)
+					points(c(0,1), c(1,0), type='l', col='grey')
+					abline(v = VP.new[length(pos.idx)+1], col='purple', lty = 3)
+					abline(h = FP.new[length(pos.idx)+1], col='purple', lty = 3)
+					if (printValues) 
+					{
+						cat("AUPR (Area Under the Precision-Recall curve) :", round(aupr,4), "\n")
+						cat("F1 score: ", round(F1.est,4) , "\n")
+					}
+				}
+				#grid()
+				if (printValues) { print(conf.mat) }
+			}
+			else
+			{	
+				pred.classes[-pos.idx] = classes[-which(classes == positive)]
+				conf.mat = confusion.matrix(pred.classes,Y)
+				F1.est = fScore(conf.mat)
+				if (printValues) 
+				{
+					cat("F1 ", F1.est, "\n")
+					print(conf.mat)
+				}
+				plot(VP.new, FP.new, xlab = "Sensitivity [1 - True positives Rate]", ylab = "Precision [1 - False Discovery Rate]", main = paste("Precision-recall curve ", "[Probability of positive class", " > ", ranking.threshold, "]", sep=""), type='l', col = sample(1:10,1), lwd = 2)
+				points(c(0,1), c(1,0), type='l', col='grey')
+				abline(v = VP.new[length(pos.idx)+1], col='purple', lty = 3)
+				abline(h = FP.new[length(pos.idx)+1], col='purple', lty = 3)
+				#grid()
+			}
+		}
+		else
+		{
+			return(list(cost = round((1-(n1+n2)/sum(pred.classes == positive))*100,2), threshold =  ranking.threshold, 
+				accuracy = round(( 1 - (1 - F1.est)/conf.mat[nrow(conf.mat), ncol(conf.mat)])*100,2), 
+				expected.matches = round(((n1 + n2)/sum(Y == positive))*100,2)))
+		}
+	}
+}
+
+
+myAUC <- function(pred.classes, Y, positive = 2, falseDiscoveryRate = FALSE)
+{	
+	pos.idx = which(pred.classes == positive)
+	n_pos.idx = length(pos.idx)
+	if(n_pos.idx == 0)
+	{	
+		cat("No positive case found.\n")
+		return(list(auc = 0, VP = 0, FP = 0))
 	}
 	else
 	{
-		return(list(cost = round((1-(n1+n2)/sum(pred.classes == positive))*100,2), threshold =  ranking.threshold, 
-			accuracy = round(( 1 - (1 - F1.est)/conf.mat[nrow(conf.mat), ncol(conf.mat)])*100,2), expected.matches = round(((n1 + n2)/sum(Y == positive))*100,2)))
+		conf.mat = confusion.matrix(pred.classes,Y)
+		
+		n2 = diag(conf.mat[,-ncol(conf.mat)])[nrow(conf.mat)] # true positives
+		n1 = n_pos.idx - n2	# false positives
+		n3 = conf.mat[1,2]	# false negatives
+		n4 = conf.mat[1,1]  # true negatives
+		
+		inv_n23 = 1/(n2 + n3)
+		inv_n12 = 1/(n1 + n2)
+		#compute Area under Precision-Recall Curve
+		if (falseDiscoveryRate) 
+		{
+			VP = array(0, n_pos.idx+1)
+			FP = array(1, n_pos.idx+1)
+			for(i in 1:n_pos.idx)
+			{
+				if (pred.classes[pos.idx[i]] == Y[pos.idx[i]] )  { VP[i+1] = VP[i] + inv_n23; FP[i+1] = FP[i]	}
+				else {	FP[i+1] = FP[i] - inv_n12;  VP[i+1] = VP[i] }
+			}
+			FP.new = c(FP,0)
+			VP.new = c(VP,1)
+			
+			n_pos = length(VP.new)
+			auc = rep(0,n_pos)
+			for (j in 2:n_pos)
+			{	
+				DV = (VP.new[j] - VP.new[j-1])
+				DF = (FP.new[j-1] - FP.new[j] )
+				#DF = (1-FP.new[j] - (1-FP.new[j-1]))
+				auc[j] = { (1 -  VP.new[j])*DF + 0.5*DV*DF }
+			}
+			auc = 1- sum(auc)
+		}
+		# compute Area under ROC Curve
+		else
+		{
+			# for ROC curve : VP rate = Sensitivity = VP/(VP + FN);  specificity = VN/(VN + FP) = 1 - FP rate 
+			# and Sensitivity = True positives among all; Specificity = True negatives among all
+			# rOC plots True positive rate (y-axis) vs false positive rate (x-axis)
+			VP = FP = array(0, length(pos.idx)+1)
+			inv_n14 = 1/(n1 + n4)
+			for (i in 1:length(pos.idx))
+			{
+				if (pred.classes[pos.idx[i]] == Y[pos.idx[i]] ) {	VP[i+1] = VP[i] + inv_n23; FP[i+1] = FP[i]	}
+				else {	FP[i+1] = FP[i] + inv_n14; VP[i+1] = VP[i] }
+			}
+			FP.new = c(FP,1)
+			VP.new = c(VP,1)
+			
+			n_pos = length(VP.new)
+			auc = rep(0,n_pos)
+			for (j in 2:n_pos)
+			{	
+				DV = (VP.new[j] - VP.new[j-1])
+				DF = (FP.new[j] - FP.new[j-1])
+				auc[j] = (1 - VP.new[j])*DF + 0.5*DV*DF
+			}
+			auc = 1- sum(auc)
+		}
+		
+		return(list(auc = auc, VP = VP.new, FP = FP.new))
 	}
 }
+
 
 optimizeFalsePositives = function(X, Y, classes, o.positive = classes[2], o.ranking.values = 0, o.falseDiscoveryRate = TRUE, stepping = 0.01)
 {
@@ -1571,8 +1720,7 @@ optimizeFalsePositives = function(X, Y, classes, o.positive = classes[2], o.rank
 	i = 1; n = length(threshold)
 	while( (tmp.AUC < 1) & (tmp.AUC > 0) & (i <= n))
 	{
-		ROC.object = roc.curve(X, Y, classes, positive = o.positive, ranking.threshold = threshold[i], ranking.values = o.ranking.values, 
-		falseDiscoveryRate = o.falseDiscoveryRate, plotting = FALSE)
+		ROC.object = roc.curve(X, Y, classes, positive = o.positive, ranking.threshold = threshold[i], ranking.values = o.ranking.values, falseDiscoveryRate = o.falseDiscoveryRate, plotting = FALSE)
 		
 		cost[i] = ROC.object$cost 
 		accuracy[i] = ROC.object$accuracy 
@@ -1601,14 +1749,12 @@ someErrorType = function(modelPrediction, Y, generic = TRUE, regression = FALSE)
 		{  return(list(error = L2Dist(Y, modelPrediction$prediction)/length(Y) ) ) }
 		else
 		{  
-			if ( (min(Y) == 1) & ( (min(as.numeric(modelPrediction$prediction)) == 0) | 
-			(max(as.numeric(modelPrediction$prediction)) == 1) )  )	
+			if ( (min(Y) == 1) & ( (min(as.numeric(modelPrediction$prediction)) == 0) | (max(as.numeric(modelPrediction$prediction)) == 1) )  )
 			{	modelPrediction$prediction  =  modelPrediction$prediction + 1	}		
-			confusion = confusion.matrix(as.numeric(modelPrediction$prediction), Y)
+			confusion = confusion.matrix(as.numeric(modelPrediction$prediction),Y)
 			if (length(unique(Y)) == 2 )
 			{	
-				return(list( error = generalization.error(confusion), confusion = confusion, 
-				AUC = pROC::auc(Y, as.numeric(modelPrediction$prediction)) ) ) 	
+				return(list( error = generalization.error(confusion), confusion = confusion, AUC = pROC::auc(Y, as.numeric(modelPrediction$prediction)), AUPR = myAUC(as.numeric(modelPrediction$prediction), as.numeric(Y), falseDiscoveryRate = TRUE)$auc))  	
 			}
 			else
 			{	return(list( error = generalization.error(confusion), confusion = confusion) ) 	}
@@ -1628,14 +1774,15 @@ someErrorType = function(modelPrediction, Y, generic = TRUE, regression = FALSE)
 		else
 		{  
 			confusion = confusion.matrix(modelPrediction,Y)
-			if (length(unique(Y)) ==2 )
-			{	return(list( error = generalization.error(confusion), confusion = confusion, AUC = pROC::auc(Y, modelPrediction)) ) }
+			if (length(unique(Y)) == 2 )
+			{	
+				return(list( error = generalization.error(confusion), confusion = confusion, AUC = pROC::auc(Y, modelPrediction), AUPR = myAUC(as.numeric(modelPrediction), as.numeric(Y), falseDiscoveryRate = TRUE)$auc) ) 
+			}
 			else
 			{	return(list( error = generalization.error(confusion), confusion = confusion))	}
 		}	
 	}
 }
-
 
 gMean <- function(confusionMatrix, precision = FALSE)  
 {
@@ -1660,7 +1807,7 @@ expectedSquaredBias <- function(Y, Ypred)  (mean(Y - mean(Ypred)))^2
 randomWhichMax <- function(X)
 {
 	Y = seq_along(X)[X == max(X)]
-	ifelse(length(Y) > 1, sample(Y,1),Y)
+	if (length(Y) == 1) { Y } else { sample(Y,1) } 
 }
 	
 # import
@@ -1905,7 +2052,7 @@ bCI <- function(X, f = mean, R = 100, conf = 0.95, largeValues = TRUE, skew = TR
 		else
 		{
 			if (max_threads < threads) 
-			{	cat("Warning : number of threads indicated by user was higher than logical threads in this computer.\n") }
+			{	cat("Warning : number of threads is higher than logical threads in this computer.\n") }
 		}
 		
 		{
@@ -2000,7 +2147,7 @@ OOBquantiles <- function(object, conf = 0.95, plotting = TRUE, gap = 10, outlier
 		tt <- ggplot(predictedObject2, aes(x = Estimate, y = Y))
 			
 		plot(tt +  geom_point(size = 3, colour = "lightblue") + geom_errorbar(aes(ymax = UpperBound, ymin = LowerBound)) 
-			+ labs(title = "", x = "Estimate (with confidence Interval)", y = "Trues responses (Y)") )
+			+ labs(title = "", x = "Estimate (with confidence Interval)", y = "True responses (Y)") )
 	}
 	
 	cat("Probability of being over upper bound (", alpha2*100, "%) of the confidence level: ", round(OOsampleUpper,3) , "\n", sep="")
@@ -2087,25 +2234,33 @@ biasVarCov <- function(predictions, target, regression = FALSE, idx = 1:length(t
 	return(object)
 }
 	
-dates2numeric <- function(X, whichCol = NULL)
+dates2numeric <- function(X, whichCol = NULL, inverseDate = FALSE)
 {
 	lengthChar = nchar(as.character((X[1,whichCol])))
 
-	year = as.numeric(substr(X[,whichCol], 1,4))
-	month = as.numeric(substr(X[,whichCol], 6,7))
-	day = as.numeric(substr(X[,whichCol], 9,10))
-	if (lengthChar > 10) {	hour = as.numeric(substr(X[,whichCol], 12,13))	}
+	year = if (inverseDate) { as.numeric(substr(X[,whichCol], 7, 10)) } else { as.numeric(substr(X[,whichCol], 1,4)) }
+	month = if (inverseDate) {  as.numeric(substr(X[,whichCol], 4, 5)) } else { as.numeric(substr(X[,whichCol], 6,7)) }
+	day =  if (inverseDate) {  as.numeric(substr(X[,whichCol], 1, 2)) } else { as.numeric(substr(X[,whichCol], 9, 10)) }
+	
+	if (lengthChar > 10) 
+	{	
+		hour = as.numeric(substr(X[,whichCol], 12,13))	
+		if (lengthChar > 13) { minute = as.numeric(substr(X[,whichCol], 15, 16))	}
+		else { minute = NULL } 
+	}
 	else { hour = NULL }
 	
 	if (is.null(hour)) 	{	return(cbind(year, month, day, X[,-whichCol]))	}
-	else {  return(cbind(year, month, day, hour, X[,-whichCol]))	}
+	else {  return(cbind(year, month, day, hour, minute, X[,-whichCol]))	}
+	
 }	
 
-predictionVsResponses <- function(predictions, responses)
+predictionsVsResponses <- function(predictions, responses)
 {
-	plot(responses, predictions, ylab = "Predictions", xlab = "Responses")
-	linMod = lm(predictions ~ responses)
-	abline(a = linMod$coef[[1]] , b = linMod$coef[[2]], col="green")
+	plot(predictions, responses,  xlab = "Predictions", ylab = "Responses")
+	linMod = lm(responses ~ predictions)
+	abline(a = linMod$coef[[1]] , b = linMod$coef[[2]], col="green",lwd = 2)
+	grid()
 	print(summary(linMod))
 }
 
@@ -2117,4 +2272,52 @@ rm.tempdir <- function()
 	if (length(listFiles) > 0) {  file.remove(listFiles) }
 	setwd(path)
 }
+
+model.stats <- function(predictions, responses, regression = FALSE)
+{
+    #require(pROC)
+	cat("\nTest set")
+	if (is.factor(predictions) | !regression)
+	{
+		uniqueResponses = sort(unique(responses))
+		if (!is.factor(responses)) { responses = as.factor(responses) }
+		confMat = confusion.matrix(as.numeric(predictions), as.numeric(responses))
+		rownames(confMat) = unique(responses)
+		colnames(confMat)[-ncol(confMat)] = rownames(confMat)
+		cat("\nError rate: ")
+		cat(round(100*generalization.error(confMat), 2), "%\n", sep="")
+		cat("\nConfusion matrix:\n")
+		print(round(confMat, 4))
+		
+		if (length(uniqueResponses) == 2)
+		{
+			cat("\nArea Under ROC Curve:", round(pROC::auc(as.numeric(responses), as.numeric(predictions)), 4))
+			cat("\nArea Under Precision-Recall Curve:", 
+			round(myAUC(as.numeric(predictions), as.numeric(responses), falseDiscoveryRate = TRUE)$auc, 4))
+			cat("\nF1-score:", round(fScore(confMat),4))
+			roc.curve(predictions, responses, uniqueResponses, printValues = FALSE)
+			dev.new( )
+			roc.curve(predictions, responses, uniqueResponses, falseDiscoveryRate = TRUE, printValues = FALSE)
+		}
+		cat("\nGeometric mean:", round(gMean(confMat),4),"\n")
+		if (nrow(confMat) > 2)
+		{ cat("Geometric mean of the precision:", round(gMean(confMat, precision = TRUE),4),"\n") }	
+	
+	}
+	else
+	{
+		n = length(responses)
+		MSE = L2Dist(predictions, responses)/n
+		cat("\nMean of squared residuals: ", round(MSE, 6), "\n", sep="") 
+		cat("Variance explained: ", round(100*(1 - MSE/var(responses)),2), "%\n\n", sep = "")		
+		Residuals <- summary(predictions - responses)
+		names(Residuals) = c("Min", "1Q", "Median", "Mean", "3Q", "Max")
+		cat("Residuals:\n")
+		print(Residuals)
+		cat("Mean of absolute residuals: ", round(L1Dist(predictions, responses)/n, 6), "\n", sep="")
+		cat("\n")
+		predictionsVsResponses(predictions, responses) 		
+	}
+}
+
 # END OF FILE

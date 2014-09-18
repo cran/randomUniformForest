@@ -167,15 +167,7 @@ rUniformForest.big <- function(X, Y = NULL, xtest = NULL, ytest = NULL, nforest 
 		cat("X is a dataframe. String or factors have been converted to numeric values.\n") 
 		X <- NAfactor2matrix(X)	
 	}
-	if (!is.null(categoricalvariablesidx))
-	{
-		if (categoricalvariablesidx[1] == "all")
-		{	
-			factorVariables <- which(getFactors > 0)
-			if (length(factorVariables) > 0)
-			{ 	categoricalvariablesidx = factorVariables	}
-		}
-	}
+	categoricalvariablesidx
 	if (randomCut)
 	{
 		set.seed(sample(100000,1))
@@ -256,7 +248,7 @@ rUniformForest.big <- function(X, Y = NULL, xtest = NULL, ytest = NULL, nforest 
 	RUF.model <- randomUniformForestCore.big(X, Y, nforest, reduceDimension = reduceDimension, reduceAll = reduceAll, r.ntree = ntree, 
 		r.nodeMinSize = nodesize, r.maxNodes = maxnodes, r.depth = depth, r.depthControl = depthcontrol, r.features = mtry, 
 		r.bootstrap = replace, r.subagging = subsamplerate, r.overSampling = oversampling, r.outputPerturbation = outputperturbationsampling, r.targetClass = targetclass, r.rebalancedSampling = rebalancedsampling, r.classcutoff = classcutoff, r.use.OOB = OOB,
-		r.BreimanBounds = BreimanBounds, r.x.bagging = bagging, r.randomCombination = randomcombination, r.randomFeature = randomfeature, r.variableImportance = importance, r.whichCatVariables = categoricalvariablesidx, r.featureSelectionRule = featureselectionrule, r.logX = logX, r.classwt = classwt, r.regression = regression, r.factors = getFactors, r.threads = threads, 
+		r.BreimanBounds = BreimanBounds, r.x.bagging = bagging, r.randomCombination = randomcombination, r.randomFeature = randomfeature, r.variableImportance = importance, r.whichCatVariables = categoricalvariablesidx, r.featureSelectionRule = featureselectionrule, r.logX = logX, r.classwt = classwt, r.regression = regression,  r.threads = threads, 
 		r.parallelPackage = parallelpackage, replacement = FALSE, subsample = FALSE)		
 	if (!is.null(classwt))
 	{ 
@@ -327,7 +319,8 @@ rUniformForest.big <- function(X, Y = NULL, xtest = NULL, ytest = NULL, nforest 
 	RUFObject
 }
 
-randomUniformForestCore.big <- function(X, Y, howManyForests, reduceDimension = FALSE, reduceAll = FALSE, replacement = FALSE, 
+randomUniformForestCore.big <- function(X, Y, howManyForests, reduceDimension = FALSE, reduceAll = FALSE, 
+	replacement = FALSE, 
 	subsample = FALSE,
 	r.nodeMinSize = 1,
 	r.maxNodes = Inf, 
@@ -353,43 +346,48 @@ randomUniformForestCore.big <- function(X, Y, howManyForests, reduceDimension = 
 	r.whichCatVariables = NULL,
 	r.featureSelectionRule = c("entropy", "gini", "random", "L1", "L2"),
 	r.logX = FALSE,
-	r.factors = NULL,
 	r.threads = "auto",
 	r.parallelPackage = "doParallel")
 {	
-	if (howManyForests == 1) { howManyForests = 2 }
 	nCovForests = -1
 	r.ntree = round(r.ntree/(howManyForests + nCovForests + 1),0)		
-	if (reduceAll)
+	if (howManyForests > 1)
 	{
-		X.list_kdimensions <- setManyDatasets(X, howManyForests, dimension = TRUE, replace = replacement, subsample = subsample)
-		X.list_kdatasets <- setManyDatasets(X, howManyForests, replace = replacement, subsample = subsample)		
-		X.set = X[X.list_kdatasets[[1]], X.list_kdimensions[[1]]]
-		Y.set = Y[X.list_kdatasets[[1]]] 
-	}
-	else
-	{
-		if (reduceDimension)
+		if (reduceAll)
 		{
-			X.list_kdimensions <- setManyDatasets(X, howManyForests, dimension = reduceDimension, replace = replacement, subsample = subsample)
-			X.set = X
-			X.set[,-X.list_kdimensions[[1]]] = 0
-			Y.set = Y
+			X.list_kdimensions <- setManyDatasets(X, howManyForests, dimension = TRUE, replace = replacement, subsample = subsample)
+			X.list_kdatasets <- setManyDatasets(X, howManyForests, replace = replacement, subsample = subsample)		
+			X.set = X[X.list_kdatasets[[1]], X.list_kdimensions[[1]]]
+			Y.set = Y[X.list_kdatasets[[1]]] 
 		}
 		else
 		{
-			X.list_kdatasets <- setManyDatasets(X, howManyForests, replace = replacement, subsample = subsample)
-			X.set = X[X.list_kdatasets[[1]],]
-			Y.set = Y[X.list_kdatasets[[1]]] 
+			if (reduceDimension)
+			{
+				X.list_kdimensions <- setManyDatasets(X, howManyForests, dimension = reduceDimension, replace = replacement, subsample = subsample)
+				X.set = X
+				X.set[,-X.list_kdimensions[[1]]] = 0
+				Y.set = Y
+			}
+			else
+			{
+				X.list_kdatasets <- setManyDatasets(X, howManyForests, replace = replacement, subsample = subsample)
+				X.set = X[X.list_kdatasets[[1]],]
+				Y.set = Y[X.list_kdatasets[[1]]] 
+			}
 		}
-	}		
-	rUF1 <- randomUniformForestCore(X.set, trainLabels = Y.set, depth = r.depth, depthControl = r.depthControl, ntree = r.ntree, 
-		nodeMinSize = r.nodeMinSize, maxNodes = r.maxNodes, features = r.features, rf.bootstrap = r.bootstrap, use.OOB = r.use.OOB, 
-		BreimanBounds = r.BreimanBounds, threads = r.threads, rf.subagging = r.subagging, rf.overSampling = r.overSampling, 
-		rf.targetClass = r.targetClass, rf.rebalancedSampling = r.rebalancedSampling, variableImportance = r.variableImportance, 
+	}
+	else
+	{ X.set = X;  Y.set = Y }
+	
+	rUF1 <- randomUniformForestCore(X.set, trainLabels = Y.set, depth = r.depth, depthControl = r.depthControl, 
+		ntree = r.ntree, nodeMinSize = r.nodeMinSize, maxNodes = r.maxNodes, features = r.features, 
+		rf.bootstrap = r.bootstrap, use.OOB = r.use.OOB, BreimanBounds = r.BreimanBounds, threads = r.threads, rf.subagging = r.subagging, rf.overSampling = r.overSampling, rf.targetClass = r.targetClass, rf.rebalancedSampling = r.rebalancedSampling, variableImportance = r.variableImportance, 
 		rf.x.bagging = r.x.bagging, rf.regression = r.regression, rf.randomCombination = r.randomCombination, 
 		rf.randomFeature = r.randomFeature, whichCatVariables = r.whichCatVariables, logX = r.logX, classwt = r.classwt, 
-		classCutOff = r.classcutoff, rf.outputPerturbationSampling = r.outputPerturbation, rf.featureSelectionRule = r.featureSelectionRule, factors = r.factors, parallelPackage = r.parallelPackage[1])
+		classCutOff = r.classcutoff, rf.outputPerturbationSampling = r.outputPerturbation, rf.featureSelectionRule = r.featureSelectionRule, parallelPackage = r.parallelPackage[1])
+	
+	if (howManyForests > 1)
 	{
 		for (i in 2:(howManyForests + nCovForests + 1))
 		{
@@ -417,7 +415,7 @@ randomUniformForestCore.big <- function(X, Y, howManyForests, reduceDimension = 
 			nodeMinSize = r.nodeMinSize, maxNodes = r.maxNodes, features = r.features, rf.bootstrap = r.bootstrap, use.OOB = r.use.OOB, BreimanBounds = r.BreimanBounds, threads = r.threads, rf.subagging = r.subagging, rf.overSampling = r.overSampling, 
 			rf.targetClass = r.targetClass, rf.rebalancedSampling = r.rebalancedSampling,	variableImportance = r.variableImportance, rf.x.bagging = r.x.bagging, rf.regression = r.regression, rf.randomCombination = r.randomCombination, 
 			rf.randomFeature = r.randomFeature, whichCatVariables = r.whichCatVariables, logX = r.logX, classwt = r.classwt, 
-			classCutOff = r.classcutoff, rf.outputPerturbationSampling = r.outputPerturbation, factors = r.factors, 
+			classCutOff = r.classcutoff, rf.outputPerturbationSampling = r.outputPerturbation,  
 			rf.featureSelectionRule = r.featureSelectionRule, parallelPackage = r.parallelPackage[1])			
 			rUF1 <- onlineCombineRUF(rUF1, rUF2)
 		}
@@ -425,7 +423,8 @@ randomUniformForestCore.big <- function(X, Y, howManyForests, reduceDimension = 
 	return(rUF1)
 }
 
-rUniformForest.merge <- function(X = NULL, Y = NULL, xtest = NULL, ytest = NULL,  previousObject = NULL, newObject = NULL,
+rUniformForest.merge <- function(X = NULL, Y = NULL, xtest = NULL, ytest = NULL,  previousObject = NULL, 
+	newObject = NULL,
 	ntree = 100, 
 	mtry = ifelse(bagging,ncol(X),floor(4/3*ncol(X))),
 	nodesize = 1,
@@ -476,8 +475,17 @@ rUniformForest.merge <- function(X = NULL, Y = NULL, xtest = NULL, ytest = NULL,
 				if (categoricalvariablesidx[1] == "all")
 				{	
 					factorVariables <- which(getFactors > 0)
-					if (length(factorVariables) > 0)
-					{ 	categoricalvariablesidx = factorVariables	}
+					if (length(factorVariables) > 0) 	{ 	categoricalvariablesidx = factorVariables	}
+					else
+					{ 
+					  cat("\nNo categorical variables found. Please type them manually, replacing in categoricalvariablesidx
+					  option argument 'all' by a vector of the variables that need to be treated as categorical.\n")
+					}
+				}
+				else 
+				{  
+					if (is.character(categoricalvariablesidx[1]))
+					{	categoricalvariablesidx = sort(match(categoricalvariablesidx, colnames(X)))	}
 				}
 			}
 			if ( length(which( (X == Inf) | (X == -Inf) ) ) > 0) 
@@ -559,7 +567,7 @@ rUniformForest.merge <- function(X = NULL, Y = NULL, xtest = NULL, ytest = NULL,
 		m.nodeMinSize = nodesize, m.maxNodes = maxnodes, m.depth = depth, m.depthControl = depthcontrol, m.features = mtry, 
 		m.bootstrap = replace, m.overSampling = oversampling, m.outputPerturbation = outputperturbationsampling, 
 		m.targetClass = targetclass, m.rebalancedSampling = rebalancedsampling, m.regression = regression, m.ntree = ntree, m.use.OOB = OOB, m.BreimanBounds = BreimanBounds, m.subagging = subsamplerate, m.variableImportance = importance, 
-		m.x.bagging = bagging, m.randomCombination = randomcombination, m.randomFeature = randomfeature, m.whichCatVariables = categoricalvariablesidx, m.featureSelectionRule = featureselectionrule[1], m.logX = logX, m.classwt = classwt, m.classcutoff = classcutoff, m.factors = getFactors, m.threads = threads, 
+		m.x.bagging = bagging, m.randomCombination = randomcombination, m.randomFeature = randomfeature, m.whichCatVariables = categoricalvariablesidx, m.featureSelectionRule = featureselectionrule[1], m.logX = logX, m.classwt = classwt, m.classcutoff = classcutoff, m.threads = threads, 
 		m.parallelPackage = parallelpackage[1])
 	if (!is.null(classwt))
 	{ 
@@ -674,7 +682,6 @@ randomUniformForestCore.merge <- function(X = NULL,Y = NULL, previousObject = NU
 	m.featureSelectionRule = c("entropy", "gini", "random", "L1", "L2"),
 	m.logX = FALSE,
 	m.classcutoff = c(0,0),
-	m.factors = NULL,
 	m.threads = "auto",
 	m.parallelPackage = "doParallel")
 {
@@ -689,8 +696,7 @@ randomUniformForestCore.merge <- function(X = NULL,Y = NULL, previousObject = NU
 			nodeMinSize = m.nodeMinSize, maxNodes = m.maxNodes, features = m.features, rf.bootstrap = m.bootstrap, use.OOB = m.use.OOB,
 			BreimanBounds = m.BreimanBounds, threads = m.threads, rf.subagging = m.subagging, rf.overSampling = m.overSampling, rf.targetClass = m.targetClass, rf.rebalancedSampling = m.rebalancedSampling, variableImportance = m.variableImportance, rf.x.bagging = m.x.bagging, rf.regression = m.regression, rf.randomCombination = m.randomCombination, 
 			rf.randomFeature = m.randomFeature, whichCatVariables = m.whichCatVariables, 
-			rf.outputPerturbationSampling = m.outputPerturbation, logX = m.logX, classwt = m.classwt, classCutOff = m.classcutoff, 
-			factors = m.factors, rf.featureSelectionRule = m.featureSelectionRule, parallelPackage = m.parallelPackage[1])
+			rf.outputPerturbationSampling = m.outputPerturbation, logX = m.logX, classwt = m.classwt, classCutOff = m.classcutoff, rf.featureSelectionRule = m.featureSelectionRule, parallelPackage = m.parallelPackage[1])
 	}			
 	previousObject = filter.forest(previousObject)
 	newObject = filter.forest(newObject)	
@@ -792,8 +798,7 @@ rUniformForest.grow <- function(object, X, Y = NULL, ntree = 100, threads = "aut
 				oversampling = if (as.character(paramsObject["oversampling", 1]) == "FALSE") { 0 } 
 					else { as.numeric(as.character(paramsObject["oversampling", 1])) },
 				targetclass = as.numeric(as.character(paramsObject["targetclass", 1])),
-				outputperturbationsampling = if (as.character(paramsObject["outputperturbationsampling", 1]) == "FALSE") { FALSE } 
-					else { as.numeric(as.character(paramsObject["outputperturbationsampling", 1])) },
+				outputperturbationsampling = if (as.character(paramsObject["outputperturbationsampling", 1]) == "FALSE") { FALSE } 	else { TRUE },
 				rebalancedsampling = if (as.character(paramsObject["rebalancedsampling", 1]) == "FALSE") 
 					{ as.logical(as.character(paramsObject["rebalancedsampling", 1])) } 
 					else 
@@ -851,8 +856,7 @@ rUniformForest.grow <- function(object, X, Y = NULL, ntree = 100, threads = "aut
 				oversampling = if (as.character(paramsObject["oversampling", 1]) == "FALSE") { 0 } 
 					else { as.numeric(as.character(paramsObject["oversampling", 1])) },
 				targetclass = as.numeric(as.character(paramsObject["targetclass", 1])),
-				outputperturbationsampling = if (as.character(paramsObject["outputperturbationsampling", 1]) == "FALSE") { FALSE } 
-					else { as.numeric(as.character(paramsObject["outputperturbationsampling", 1])) },
+				outputperturbationsampling = if (as.character(paramsObject["outputperturbationsampling", 1]) == "FALSE") { FALSE } else { TRUE },
 				rebalancedsampling = if (as.character(paramsObject["rebalancedsampling", 1]) == "FALSE") 
 					{ as.logical(as.character(paramsObject["rebalancedsampling", 1])) } 
 					else 

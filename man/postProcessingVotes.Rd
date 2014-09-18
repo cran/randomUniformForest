@@ -35,7 +35,7 @@ postProcessingVotes(object,
 help to reduce error. Must be used with 'swapPredictions = TRUE'
 }
 	\item{swapPredictions }{
- 		set it to TRUE if two models, cuurent one without OOB data and old one with OOB data, have to be used for trying to reduce prediction error.
+ 		set it to TRUE if two models, current one without OOB data and old one with OOB data, have to be used for trying to reduce prediction error.
 }
 	\item{X}{
      not currently used.
@@ -90,7 +90,7 @@ newEstimate <- postProcessingVotes(rUF.model)
 # get mean squared error
 sum((newEstimate - Ytest)^2)/length(Ytest)
 
-## regression do not use all data but subsamples.
+## regression do not use all data but sub-samples.
 ## compare, when using full sample. But then, we do not have OOB data
 
 # rUF.model.fullsample <- randomUniformForest(Xtrain, Ytrain, xtest = Xtest, ytest = Ytest,

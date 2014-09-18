@@ -4,7 +4,7 @@
 \title{Incremental learning for random Uniform Forests
 }
 \description{
-  Combine many random uniform forests on same or different data and/or same and different parameters to obtain one ensemble model. Function acts as the "Reduce" task of MapReduce paradigm. "Map" task has here no defined length, since rUniformForest.combine() is an ensemble of ensembles of any size, parameters or data that can be continously merged and evaluated as a single model. Native incremental learning is then achieved adding and removing, but never modifying, trees.
+  Combine many random uniform forests on same or different data and/or same and different parameters to obtain one ensemble model. Function acts as the "Reduce" task of MapReduce paradigm. "Map" task has here no defined length, since rUniformForest.combine() is an ensemble of ensembles of any size, parameters or data that can be continuously merged and evaluated as a single model. Native incremental learning is then achieved adding and removing, but never modifying, trees.
 }
 \usage{
 rUniformForest.combine(...)
@@ -17,9 +17,9 @@ rUniformForest.combine(...)
 }
 
 \details{
-  Incremental learning is assumed as a subsampling process if distribution is not switching. Data arrive continously and random Uniform Forests
+  Incremental learning is assumed as a sub-sampling process if distribution is not switching. Data arrive continuously and random Uniform Forests
   are trained and updated using chunks of the data. Computing time and memory are constant and only prediction time will increase depending on the size (number of trees) of the model. Hence "split-apply-combine" ideas will matter and chunks just have to be processed on all available workstations. For a shifting distribution, changes can happen in the current processed chunk or between one chunk and another. Then, one
-  needs to choose how the model has to be updated. Note that incremental learning is effective because cut-points are choosen randomly, according to the Uniform law on the support of each candidate variable. rUniformForest.combine() acts as "compute everywhere, combine in one place" and there is no need to split data here nor to apply the same model. Data are assumed to come from any source, continously and by chunks, sharing only the same or some common features. Parameters in any model are allowed to change.
+  needs to choose how the model has to be updated. Note that incremental learning is effective because cut-points are chosen randomly, according to the Uniform law on the support of each candidate variable. rUniformForest.combine() acts as "compute everywhere, combine in one place" and there is no need to split data here nor to apply the same model. Data are assumed to come from any source, continuously and by chunks, sharing only the same or some common features. Parameters in any model are allowed to change.
 }
 
 

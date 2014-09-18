@@ -46,7 +46,7 @@
      current matrix used to compute 'object' model. Can be either training or test matrix. If it is the latter, please read below.
 }
 	\item{whichFeature}{
-    for the 'plot' method, the feature (by its name or position) that one need to be asessed. It will be used in partial dependence. Useful only if the feature is not an important one for the model.
+    for the 'plot' method, the feature (by its name or position) that one need to be assessed. It will be used in partial dependence. Useful only if the feature is not an important one for the model.
 }
 	\item{whichOrder}{ 
 	for the 'plot' method, the order(s) at which some of the computation, e.g. partial dependence, has to be done. At "first" order, computation is done considering only each feature as the most important. At "second", it is considered at the second most important (and the first is unknown). At "all", each feature is assessed considering it is the most important, then the second most (and the first is unknown), then the third most (and the first and the second are unknown), and so on until 'maxInteractions' value is reached. Then one has to first look to this latter value to know at which maximum order a feature will be assessed. Influence of the variable will be a combination of all orders of local importance, depending on the level of interactions specified by 'maxInteractions'.

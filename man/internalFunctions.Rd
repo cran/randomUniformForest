@@ -40,7 +40,7 @@
 	\alias{options.filter}	\alias{outputPerturbationSampling}	\alias{outsideConfIntLevels}
 	\alias{overSampling}	\alias{parallelNA.replace}	\alias{permuteCatValues}
 	\alias{persp.withcol}	\alias{plotTreeCore}	\alias{plotTreeCore2}	\alias{predictDecisionTree}
-	\alias{predictionVsResponses}	\alias{pseudoHuberDist}	\alias{pseudoNAReplace}
+	\alias{predictionsVsResponses}	\alias{pseudoHuberDist}	\alias{pseudoNAReplace}
 	\alias{rUniformForest.merge}	\alias{rUniformForestPredict}	\alias{randomCombination}
 	\alias{randomUniformForestCore}
 	\alias{randomUniformForestCore.big}	\alias{randomUniformForestCore.merge}
@@ -54,10 +54,10 @@
 	\alias{subEstimaterequiredSampleSize}	\alias{timer}	\alias{twoColumnsImportance}
 	\alias{uniformDecisionTree}	\alias{vector2factor}	\alias{vector2matrix}	\alias{weightedVote}
 	\alias{weightedVoteModel}	\alias{which.is.factor}	\alias{which.is.na}
-	\alias{which.is.wholenumber}
+	\alias{which.is.wholenumber} \alias{myAUC} \alias{matrix2factor2} \alias{model.stats} 
 
 \title{All internal functions}
 
 \description{
-	Internal functionsfor random Uniform Forests
+	Internal functions for random Uniform Forests
 }

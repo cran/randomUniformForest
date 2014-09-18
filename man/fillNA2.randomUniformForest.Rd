@@ -11,8 +11,10 @@ non-missing values are training responses and missing values, responses to predi
 \usage{
 fillNA2.randomUniformForest(X, Y = NULL, ntree = 100, 
 	mtry = 1, 
-	nodesize = 10, 
+	nodesize = 10,
+	categoricalvariablesidx = NULL,
 	NAgrep = "", 
+	maxClasses = floor(0.01*min(3000, nrow(X))+2),
 	threads = "auto")
 }
 
@@ -32,8 +34,14 @@ fillNA2.randomUniformForest(X, Y = NULL, ntree = 100,
  \item{nodesize}{
      smallest number of observations in each leaf node.
 }
+ \item{categoricalvariablesidx}{
+    see \code{\link{randomUniformForest}}.
+}
  \item{NAgrep}{
      which symbol (in case of data frame), e.g. "?", in addition to "NA" has to be considered as a missing value. 
+}
+\item{maxClasses}{
+	maximal number of classes for a categorical variable.
 }
 \item{threads}{
     how many logical cores to complete data. Default values will let algorithm use all available cores.  
@@ -45,7 +53,7 @@ fillNA2.randomUniformForest(X, Y = NULL, ntree = 100,
 }
 
 \value{
- a matrix or a data frame containing complete values.
+ a matrix or a data frame containing completed values.
 }
 
 \author{
@@ -54,7 +62,7 @@ fillNA2.randomUniformForest(X, Y = NULL, ntree = 100,
 
 \examples{
 ## not run
-## get same example as rfImpute() fonction from randomForest package
+## get same example as rfImpute() function from randomForest package
 # data(iris)
 # iris.na <- iris
 # set.seed(111)

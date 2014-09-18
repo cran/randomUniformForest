@@ -5,14 +5,14 @@
 Random Uniform Forests for Classification and Regression
 }
 \description{
-Ensemble model, for classification and regression, based on a forest of of unpruned and randomized binary trees. Each tree is grown by sampling, with replacement, a set of variables at each node. Each cut-point is generated randomly, according to the Uniform law on the support of each candidate variable. Optimal random node is, then, choosen by maximizing information gain (classification) or minimizing 'L2' (or 'L1') distance (regression). Data are either bootstrapped or subsampled for each tree. Random Uniform Forests are aimed to lower correlation between trees, to offer more details about variable importance and selection and to allow native incremental learning.
+Ensemble model, for classification and regression, based on a forest of unpruned and randomized binary trees. Each tree is grown by sampling, with replacement, a set of variables at each node. Each cut-point is generated randomly, according to the Uniform distribution on the support of each candidate variable. Optimal random node is, then, chosen by maximizing information gain (classification) or minimizing 'L2' (or 'L1') distance (regression). Data are either bootstrapped or sub-sampled for each tree. Random Uniform Forests are aimed to lower correlation between trees, to offer more details about variable importance and selection and to allow native incremental learning.
 }
 \details{
 \tabular{ll}{
 Package: \tab randomUniformForest\cr
 Type: \tab Package\cr
-Version: \tab 1.0\cr
-Date: \tab 2014-05-12\cr
+Version: \tab 1.0.8\cr
+Date: \tab 2014-09-18\cr
 License: \tab BSD_3_clause\cr
 }
 }
@@ -29,9 +29,14 @@ License: \tab BSD_3_clause\cr
  
  Breiman, L., Friedman, J.H., Olshen, R.A., Stone, C., 1984. \emph{Classification and Regression Trees}. New York: Chapman and Hall. 
  
- Ciss, S., 2014. PhD thesis: \emph{Random uniform forests and irregularity detection in social security contributions}. Submitted. 
+ Ciss, S., 2014. PhD thesis: \emph{Forets uniformement aleatoires et detection des irregularites aux cotisations sociales}. Universite Paris Ouest Nanterre, France. In french.\cr
+ English title : \emph{Random Uniform Forests and irregularity detection in social security contributions}.\cr
+ Link : https://www.dropbox.com/s/q7hbgeafrdd8qtc/Saip_Ciss_These.pdf?dl=0
  
- Devroye, L., Gyorfi, L., Lugosi, G., 1996. \emph{A probabilistic theory of pattern recognition}. New York: Springer. 
+ Devroye, L., Gyorfi, L., Lugosi, G., 1996. \emph{A probabilistic theory of pattern recognition}. New York: Springer.
+ 
+ Dietterich, T.G., 2000. \emph{Ensemble Methods in Machine Learning}, in : Multiple Classifier Systems, Lecture Notes in Computer Science.
+ Springer Berlin Heidelberg, pp. 1-15. 
  
  Efron, B., 1979. \emph{Bootstrap Methods: Another Look at the Jackknife}. The Annals of Statistics 7, 1-26. 
  

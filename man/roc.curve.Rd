@@ -5,8 +5,7 @@
 }
 
 \description{
- plot ROC and precision-recall curves for objets of class randomUniformForest and compute F-beta score. It also works for any other model
- that provides predicted labels (but only for ROC curve).
+ plot ROC and precision-recall curves for objects of class randomUniformForest and compute F-beta score. It also works for any other model that provides predicted labels (but only for ROC curve).
 }
 
 \usage{
@@ -16,6 +15,7 @@ roc.curve(X, Y, classes,
 	ranking.values = 0,
 	falseDiscoveryRate = FALSE,
 	plotting = TRUE,
+	printValues = TRUE,
 	Beta = 1)
 }
 
@@ -27,25 +27,28 @@ roc.curve(X, Y, classes,
      a vector of numeric (integer) responses, or a factor, with two classes.
 }
  \item{classes}{
-     a vector (or a factor) of values that designate the class.
+    a vector (or a factor) of values that designate the class.
 }
  \item{positive}{
-     convention for the positive class (e.g. the minority class).
+    convention for the positive class (e.g. the minority class).
 }
 \item{ranking.threshold}{
-     option currently implemented but not fully tested.
+    option currently implemented but not fully tested.
 }
 \item{ranking.values}{
-     option currently implemented but not fully tested.
+    option currently implemented but not fully tested.
 }
  \item{falseDiscoveryRate}{
-     if TRUE, precision-recall curve is plotted. if FALSE, default value, ROC curve is plotted.
+    if TRUE, precision-recall curve is plotted. if FALSE, default value, ROC curve is plotted.
 }
 \item{plotting}{
-     plotting the ROC curve ?
+    plotting the ROC curve ?
+}
+\item{printValues}{
+   display values to screen ?
 }
 \item{Beta}{
-     'beta' value for F-beta score.
+    'beta' value for F-beta score.
 }
 }
 
@@ -86,10 +89,10 @@ breastCancer.class.test <- as.factor(breastCancer.data[trainTestIdx == 2, p])
 levels(breastCancer.class.test) = c("benign", "malignant")
 
 # compute model : train then test in the same function and assign class weights 
-# to better match the distribution (OOB erros and Breiman bounds can help to choose weights)
+# to better match the distribution (OOB errors and Breiman's bounds can help to choose weights)
 # Note that in this case 'recall' (or sensitivity) is the objective, 
-# e.g. match all possible cases of malignant tumors even if false positive rate increase 
-#(in this latter case, further steps will reveal the truth). If malignant tumor is not detected, 
+# e.g. match all possible cases of malignant tumours even if false positive rate increase 
+#(in this latter case, further steps will reveal the truth). If malignant tumour is not detected, 
 # then diagnosis error is, by far, more critical.
 breastCancer.ruf  <- randomUniformForest(breastCancer.data.train, breastCancer.class.train, 
 xtest = breastCancer.data.test, ytest = breastCancer.class.test, 

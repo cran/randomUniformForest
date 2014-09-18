@@ -65,15 +65,17 @@ print.randomUniformForest <- function(x,...)
 			print(round(object$forest$OOB,4))			
 			if ((length(object$classes) == 2) & (rownames(object$forestParams)[1] != "reduceDimension"))
 			{	
-				cat("\nOOB estimate of AUC: ", round(pROC::auc(as.numeric(object$y), as.numeric(object$forest$OOB.predicts))[[1]], 4), 
-				sep = "") 
+				cat("\nOOB estimate of AUC: ", round(pROC::auc(as.numeric(object$y), as.numeric(object$forest$OOB.predicts))[[1]], 4), sep = "")
+				cat("\nOOB estimate of AUPR: ", round(myAUC(as.numeric(object$forest$OOB.predicts), 
+				as.numeric(object$y), falseDiscoveryRate = TRUE)$auc, 4),sep = "")
+				cat("\nOOB estimate of F1-score: ", round(fScore(object$forest$OOB), 4),sep = "")
 			}
-			cat("\nGeometric mean:", round(gMean(object$forest$OOB),4),"\n")
+			cat("\nOOB geometric mean:", round(gMean(object$forest$OOB),4),"\n")
 			if (nrow(object$forest$OOB) > 2)
-			{ cat("Geometric mean of the precision:", round(gMean(object$forest$OOB, precision = TRUE),4),"\n") }
+			{ cat("OOB geometric mean of the precision:", round(gMean(object$forest$OOB, precision = TRUE),4),"\n") }
 			if (!is.null(object$forest$OOB.strengthCorr))
 			{
-				cat("\nTheorical (Breiman) bounds")
+				cat("\nBreiman's bounds")
 				cat("\nPrediction error (expected to be lower than): ", round(mean(100*rmNA(object$forest$OOB.strengthCorr$PE)),2),"%\n", sep ="")
 				cat("Upper bound of prediction error: ", round(mean(100*rmNA(object$forest$OOB.strengthCorr$std.strength^2/object$forest$OOB.strengthCorr$strength^2)),2),"%\n", sep ="")
 				cat("Average correlation between trees:", round(mean(round(rmNA(object$forest$OOB.strengthCorr$avg.corr),4)),4),"\n")
@@ -100,8 +102,8 @@ print.randomUniformForest <- function(x,...)
 			cat("Mean of absolute residuals:", sum(abs(object$forest$OOB.predicts - object$y))/length(object$y),"\n")						
 			if (!is.null(object$forest$OOB.strengthCorr))
 			{
-				cat("\nTheorical (Breiman) bounds")
-				cat("\nTheorical prediction error:", round(rmNA(object$forest$OOB.strengthCorr$PE.forest),6) ,"\n")
+				cat("\nBreiman's bounds")
+				cat("\nTheoretical prediction error:", round(rmNA(object$forest$OOB.strengthCorr$PE.forest),6) ,"\n")
 				cat("Upper bound of prediction error:", round(rmNA(object$forest$OOB.strengthCorr$PE.max),6),"\n")
 				cat("Mean prediction error of a tree:", round(rmNA(object$forest$OOB.strengthCorr$PE.tree),6),"\n")
 				cat("Average correlation between trees residuals:", round(rmNA(object$forest$OOB.strengthCorr$mean.corr),4),"\n")
@@ -122,7 +124,8 @@ print.randomUniformForest <- function(x,...)
 			print(round(object$errorObject$confusion,4))			
 			if (!is.null(object$errorObject$AUC)) 
 			{ 
-				cat("\nArea Under ROC Curve:", round(object$errorObject$AUC,4)) 
+				cat("\nArea Under ROC Curve:", round(object$errorObject$AUC,4))
+				cat("\nArea Under Precision-Recall Curve:", round(object$errorObject$AUPR,4))
 				cat("\nF1 score:", round(fScore(object$errorObject$confusion),4)) 	
 			}
 			cat("\nGeometric mean:", round(gMean(object$errorObject$confusion),4),"\n")
@@ -160,7 +163,8 @@ summary.randomUniformForest <- function(object, maxVar = 30, border = NA,...)
 		if (nVar > maxVar) { varImportance = varImportance[1:maxVar,] }	
 		barplot( varImportance[nrow(varImportance):1,"percent.importance"], horiz = TRUE, col = sort(heat.colors(nrow(varImportance)), decreasing = TRUE), 
 		names.arg = varImportance[nrow(varImportance):1,"variables"], border = border,
-		xlab = "Relative Influence (%)", main = "Variable Importance based on information gain")
+		xlab = "Relative Influence (%)", main = if (!object$forest$regression) { "Variable Importance based on information gain" }
+		else { "Variable Importance based on distance (L2 or L1)" })
 		abline(v = 100/nVar, col ='grey')
 		cat("Variables summary: ", "\n")
 		print(varImportance1)
@@ -178,7 +182,7 @@ summary.randomUniformForest <- function(object, maxVar = 30, border = NA,...)
 		cat("\n")
 		cat("Average tree depth :", round(log(mean(nodesView))/log(2),0), "\n")
 		cat("\n")
-		cat("Theorical tree depth :", round(log(length(object$y), base = 2),0), "\n")
+		cat("Theoretical tree depth :", round(log(length(object$y), base = 2),0), "\n")
 		cat("\n")		
 	}
 	else
@@ -196,12 +200,12 @@ summary.randomUniformForest <- function(object, maxVar = 30, border = NA,...)
 		cat("\n")
 		cat("Average tree depth :", round(log(mean(nodesView))/log(2),0), "\n")
 		cat("\n")
-		cat("Theorical tree depth :", round(log(length(object$y), base = 2),0), "\n")
+		cat("Theoretical tree depth :", round(log(length(object$y), base = 2),0), "\n")
 		cat("\n")		
 	}
 }
 
-plot.randomUniformForest <- function(x, ...) 
+plot.randomUniformForest <- function(x, threads = "auto",...) 
 {
 	object <- x
 	if (!is.null(object$forest$OOB.votes))
@@ -209,15 +213,15 @@ plot.randomUniformForest <- function(x, ...)
 		Ytrain = object$y
 		OOBMonitoring = object$forest$OOB.votes
 		
-		ZZ <- monitorOOBError(OOBMonitoring, Ytrain, regression = object$forest$regression, ...)
+		ZZ <- monitorOOBError(OOBMonitoring, Ytrain, regression = object$forest$regression, threads = threads)
 		
 		if (object$forest$regression)
 		{
-			plot(ZZ, type = 'l', lty=2, xlab = "Trees", ylab ="OOB mean squared error") 
+			plot(ZZ, type = 'l', lty=2, xlab = "Trees", ylab ="OOB mean squared error", ...) 
 		}
 		else
 		{	    
-			plot(apply(ZZ[,1:3],1, min), type='l', lty=2, col = "green", xlab = "Trees", ylab ="OOB error")
+			plot(apply(ZZ[,1:3],1, min), type='l', lty=2, col = "green", xlab = "Trees", ylab ="OOB error", ...)
 			points(apply(ZZ[,1:3],1, mean), type='l', lty=3)
 			points(apply(ZZ[,1:3],1, max), type='l', lty=3, col='red')
 		}
@@ -376,27 +380,34 @@ randomUniformForest.default <- function(X, Y = NULL, xtest = NULL, ytest = NULL,
 		if (ntree < 2) { stop("Please use at least 2 trees for computing forest.\n") }			
 		if ( (subsamplerate == 1) &  (replace == FALSE))  { OOB = FALSE }
 		if (depth < 3) { stop("Stumps are not allowed. Minimal depth is 3, leading, at most, to 8 leaf nodes.\n") }
-		if ( (BreimanBounds & (length(unique(Y)) > 2)) | (BreimanBounds & ntree > 500) ) 
-		{ cat("Warning : Breiman Bounds, especially for multiclass problems, are computationnaly intensive.\n") }
+		if ( (BreimanBounds & (length(unique(Y)) > 2) & (ntree > 500)) | (BreimanBounds & (ntree > 500)) ) 
+		{ cat("Note: Breiman's bounds (especially for multi-class problems) are computationally intensive.\n") }
 		if (maxnodes < 6) { stop("Maximal number of nodes must be above 5.\n") }
 		X <- fillVariablesNames(X)        
-		getFactors <- which.is.factor(X, count = TRUE)	 
-		if (is.data.frame(X)) 
+		getFactors <- which.is.factor(X, count = TRUE)
+		if ( (sum(getFactors) > 0) & is.null(categoricalvariablesidx))
 		{ 
-			cat("X is a dataframe. String or factors have been converted to numeric values.\n") 
-			X <- NAfactor2matrix(X)	
-		}				
+			cat("Note: categorical variables are found in data. Please use option categoricalvariablesidx = 'all' to match them more closely.\nNote that accuracy might drop, but variable importance might be better assessed.\n")
+		}		 
+		X <- NAfactor2matrix(X)
+		if (is.data.frame(X)) 
+		{ 	cat("X is a dataframe. String or factors have been converted to numeric values.\n") }	
 		if (!is.null(categoricalvariablesidx))
 		{
 			if (categoricalvariablesidx[1] == "all")
 			{	
 				factorVariables <- which(getFactors > 0)
-				if (length(factorVariables) > 0) { 	categoricalvariablesidx = factorVariables	}
+				if (length(factorVariables) > 0) 	{ 	categoricalvariablesidx = factorVariables	}
+				else
+				{ 
+				  cat("\nNo categorical variables found. Please type them manually, replacing in categoricalvariablesidx
+				  option argument 'all' by a vector of the variables that need to be treated as categorical.\n")
+				}
 			}
-			else
-			{
-				maxLengthOfCat <- max(apply(X[,categoricalvariablesidx, drop =FALSE], 2, function(Z) length(unique(Z))))
-				if (maxLengthOfCat > 10) { getFactors <- which.is.factor(X, maxClasses = maxLengthOfCat, count = TRUE) 	}			
+			else 
+			{  
+				if (is.character(categoricalvariablesidx[1]))
+				{	categoricalvariablesidx = sort(match(categoricalvariablesidx, colnames(X)))	}
 			}
 		}
 		if ( length(which( (X == Inf) | (X == -Inf) ) ) > 0) 
@@ -469,11 +480,12 @@ randomUniformForest.default <- function(X, Y = NULL, xtest = NULL, ytest = NULL,
 		{   randomcombinationObject = randomcombination }
 	}	
 	RUF.model <- randomUniformForestCore(X, trainLabels = Y, ntree = ntree, nodeMinSize = nodesize, maxNodes = maxnodes, 
-		features = mtry, rf.bootstrap = replace, depth = depth, depthControl = depthcontrol, rf.subagging = subsamplerate, classwt = classwt, classCutOff = classcutoff, rf.overSampling = oversampling, rf.targetClass = targetclass, rf.rebalancedSampling = rebalancedsampling, 
+		features = mtry, rf.bootstrap = replace, depth = depth, depthControl = depthcontrol, 
+		rf.subagging = subsamplerate, classwt = classwt, classCutOff = classcutoff, rf.overSampling = oversampling, rf.targetClass = targetclass, rf.rebalancedSampling = rebalancedsampling, 
 		rf.outputPerturbationSampling = outputperturbationsampling,	rf.randomCombination = randomcombinationObject, 
 		rf.randomFeature = randomfeature, rf.x.bagging = bagging, rf.featureSelectionRule = featureselectionrule[1], 
 		rf.regression = regression, use.OOB = OOB, BreimanBounds = BreimanBounds, variableImportance = importance, 
-		whichCatVariables = categoricalvariablesidx, logX = logX, threads = threads, factors = getFactors, 
+		whichCatVariables = categoricalvariablesidx, logX = logX, threads = threads, 
 		parallelPackage = parallelpackage[1])
 	if (!is.null(classwt))
 	{ 
@@ -575,7 +587,6 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 	rf.randomFeature = FALSE,
 	whichCatVariables = NULL,
 	logX = FALSE,
-	factors = NULL,
 	threads = "auto",	
 	parallelPackage = "doParallel",
 	export = c("uniformDecisionTree", "CheckSameValuesInAllAttributes", "CheckSameValuesInLabels", "fullNode", "genericNode", "leafNode", "randomUniformForestCore.predict", "onlineClassify", "overSampling", "predictDecisionTree", "options.filter", "majorityClass", "randomCombination", "randomWhichMax", "which.is.na", "factor2vector", "outputPerturbationSampling", "rmNA", "count.factor", 
@@ -591,7 +602,7 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 	if (!is.matrix(trainData)) { trainData <- NAfactor2matrix(trainData) }
 	if (!is.null(whichCatVariables)) 
 	{ 
-	  cat("Please also consider Dummies for categorical variables. Seem yet less reliable.\nFormula automatically builds dummies.\n")	
+	  cat("Please also consider dummies for categorical variables or use formula\n")	
 	}
 	{
 		if (!is.null(classwt)) 
@@ -621,8 +632,7 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 			features = floor(4/3*(ncol(trainData)))  
 			bagging = FALSE
 			cat("Error setting mtry. Resetting to default values.\n") 
-		}		
-		if (rf.randomFeature) { variableImportance = FALSE }		
+		}			
 		if (is.factor(trainLabels))
 		{ 	
 			if ((as.numeric(classCutOff[2]) != 0)) 
@@ -640,7 +650,7 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 		{	
 			if (rf.regression & (length(unique(trainLabels)) > 32)) 
 			{ 
-				cat("Regression has been performed.\n")				
+				#cat("Regression has been performed.\n")				
 				if ((rf.subagging < 1) & (rf.bootstrap == TRUE))
 				{ cat("For only accuracy, use option 'subsamplerate = 1' and 'replace = FALSE' \n") }				
 				classCutOff =  c(0,0) 				
@@ -706,8 +716,8 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 			{	
 				if (depthControl < 1)
 				{
-					depthControl = 1 
-					cat("Depth control option is lower than its range values. Resetting option.\n")
+					depthControl = NULL
+					cat("Depth control option is lower than its range values. Resetting to default value.\n")
 				}				
 			}			
 		}
@@ -723,7 +733,7 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 		else
 		{
 			if (max_threads < threads) 
-			{	cat("Warning : number of threads indicated by user was higher than logical threads in this computer.\n") }
+			{	cat("Warning : number of threads is higher than logical threads in this computer.\n") }
 		}
 		
 		{
@@ -741,9 +751,7 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 		# .packages = "rUniformForestCppClass") %dopar%
 		rufObject <- foreach(i = 1:ntree, .export = export, .options.smp = smpopts, .inorder = FALSE, .multicombine = TRUE) %dopar%
 		{
-			uniformDecisionTree(trainData, trainLabels, nodeMinSize = nodeMinSize, maxNodes = maxNodes, rf.features = features, 
-				getSplitAt = splitAt, regression = rf.regression, bootstrap = rf.bootstrap, subagging = rf.subagging, treeDepth = depth, treeClasswt = classwt,	treeOverSampling = rf.overSampling, targetClass = rf.targetClass, OOB = use.OOB, 
-				treeRebalancedSampling = rf.rebalancedSampling, x.bagging = rf.x.bagging, random.combination = rf.randomCombination, randomFeature = rf.randomFeature, treeCatVariables = whichCatVariables, outputPerturbation = rf.outputPerturbationSampling, featureSelectionRule = rf.featureSelectionRule, treeDepthControl = depthControl)
+			uniformDecisionTree(trainData, trainLabels, nodeMinSize = nodeMinSize, maxNodes = maxNodes, rf.features = features, getSplitAt = splitAt, regression = rf.regression, bootstrap = rf.bootstrap, subagging = rf.subagging, treeDepth = depth, treeClasswt = classwt,	treeOverSampling = rf.overSampling, targetClass = rf.targetClass, OOB = use.OOB, treeRebalancedSampling = rf.rebalancedSampling, x.bagging = rf.x.bagging, random.combination = rf.randomCombination, randomFeature = rf.randomFeature, treeCatVariables = whichCatVariables, outputPerturbation = rf.outputPerturbationSampling, featureSelectionRule = rf.featureSelectionRule, treeDepthControl = depthControl)
 		}		
 		stopCluster(Cl)
 		{
@@ -1036,9 +1044,6 @@ rUniformForestPredict <- function(object, X,
 	}	
 	if (type[1] == "truemajority") 
 	{
-		if (object$regression)
-		{ stop( "True majority vote can only be computed for classification.") }
-		else
 		{	
 			nbObs = nrow(predObject$all.votes)
 			trueMajorityVotes = rep(0,nbObs)
@@ -1048,13 +1053,23 @@ rUniformForestPredict <- function(object, X,
 			{
 				expectedClasses = unlist(lapply(predObject$votes.data, function(Z) Z[i,1]))	
 				votingMembers = unlist(lapply(predObject$votes.data, function(Z) Z[i,2]))
-				outliers = c(quantile(votingMembers, alpha1), quantile(votingMembers, alpha2))
-				idxWoOutliers = which(votingMembers <= outliers[1] | votingMembers >= outliers[2])
-				votes = cbind(expectedClasses[-idxWoOutliers], votingMembers[-idxWoOutliers])
-				colnames(votes) = c("expectedClasses", "votingMembers")
-			    trueMajorityVotes[i] = which.max(by(votes, votes[,"expectedClasses"], sum))
+				if (object$regression)
+				{
+					votes = cbind(expectedClasses, votingMembers)
+					colnames(votes) = c("expectedClasses", "votingMembers")
+					trueMajorityVotes[i] = sum( votes[,"expectedClasses"]*votes[,"votingMembers"])/sum(votes[,"votingMembers"])
+				}
+				else
+				{
+					outliers = c(quantile(votingMembers, alpha1), quantile(votingMembers, alpha2))
+					idxWoOutliers = which(votingMembers <= outliers[1] | votingMembers >= outliers[2])
+					votes = cbind(expectedClasses[-idxWoOutliers], votingMembers[-idxWoOutliers])
+					colnames(votes) = c("expectedClasses", "votingMembers")
+					trueMajorityVotes[i] = which.max(by(votes, votes[,"expectedClasses"], sum))
+				}
 			}
-			predictedObject = as.factor(trueMajorityVotes); levels(predictedObject) = classes 
+			if (object$regression)	{ predictedObject = trueMajorityVotes }
+			else {	predictedObject = as.factor(trueMajorityVotes); levels(predictedObject) = classes }
 		}
 	}	
 	if (type[1] == "confInt")	
@@ -1080,9 +1095,10 @@ rUniformForestPredict <- function(object, X,
 		{ stop( "quantile(s) can only be computed for regression") }
 		else
 		{	
-			if (!is.numeric(whichQuantile)) { stop( "Please provide a numeric value between 1 and 99") }			
-			if ( (whichQuantile < 1) | (whichQuantile > 99))  { stop( "Please provide a numeric value between 1 and 99") }			
-			predictedObject = apply(predObject$all.votes, 1, function(Z) quantile(Z, whichQuantile/100))
+			if (!is.numeric(whichQuantile)) { stop( "Please provide a numeric value greater than 0 and lower than 1") }			
+			if ( (whichQuantile <= 0) | (whichQuantile >= 1))  
+			{ stop( "Please provide a numeric value than 0 and lower than 1") }			
+			predictedObject = apply(predObject$all.votes, 1, function(Z) quantile(Z, whichQuantile))
 		}		
 	}	
 	if (type[1] == "all")	
@@ -1286,7 +1302,35 @@ pr.parallelPackage = "doParallel")
 		pred.X = vector("list", ntree)
 		all.votes = nodes.length = nodes.depth = matrix(data = Inf, nrow = n, ncol = ntree)
 		majority.vote = vector(length = n)		
-		pred.X <- lapply(object, function(Z) predictDecisionTree(Z, X))									
+		fullDim = ntree*n		
+		if (fullDim < 1e7)
+		{	pred.X <- lapply(object, function(Z) predictDecisionTree(Z, X))	 }
+		else
+		{
+			{
+				#require(parallel)	
+				max_threads = detectCores()				
+				if (pr.threads == "auto")
+				{	
+					if (max_threads == 2) { pr.threads = max_threads }
+					else {	pr.threads  = max(1, max_threads - 1)  }
+				}
+				else
+				{
+					if (max_threads < pr.threads) 
+					{	cat("Warning : number of threads is higher than logical threads in this computer.\n") }
+				}
+				#require(doParallel)	
+				Cl = makePSOCKcluster(pr.threads, type = "SOCK")
+				registerDoParallel(Cl)
+				chunkSize  <-  ceiling(n/getDoParWorkers())
+				smpopts  <- list(chunkSize = chunkSize)
+			}						
+			pushObject <- function(object, X) lapply(object, function(Z) predictDecisionTree(Z, X))			
+			pred.X <- foreach(X = iterators::iter(X, by ='row', chunksize = chunkSize), .combine = mergeLists, .export = pr.export) %dopar%
+			pushObject(object, X)									
+			stopCluster(Cl)
+		}								
 		for (i in 1:ntree)
 		{	
 			all.votes[,i] = pred.X[[i]][,1]
@@ -1403,7 +1447,7 @@ strength_and_correlation <- function(OOB.votes, OOB.object,
 		else
 		{
 			if (max_threads < s.threads) 
-			{	cat("Warning : number of threads indicated by user was higher than logical threads in this computer.\n") }
+			{	cat("Warning : number of threads is higher than logical threads in this computer.\n") }
 		}
 		{	
 			#require(doParallel)
@@ -1475,7 +1519,7 @@ monitorOOBError  <- function(OOB.votes, Y, regression = FALSE, threads = "auto")
 	else
 	{
 		if ((max_threads) < threads) 
-		{	 cat("Warning : number of threads indicated by user was higher than logical threads in this computer\n.") }
+		{	 cat("Warning : number of threads is higher than logical threads in this computer\n.") }
 	}	
 	#require(doParallel)			
 	Cl = makePSOCKcluster(threads, type = "SOCK")
@@ -1582,7 +1626,7 @@ postProcessingVotes <- function(object, nbModels = 1, idx = 1, granularity = 1, 
 	if (!object$forest$regression)
 	{
 		if (length(as.numeric(object$classes)) > 2)
-		{	stop("Optimization curently works only for binary classification") }		
+		{	stop("Optimization currently works only for binary classification") }		
 		if (is.null(X))
 		{	stop("Please provide test data")	}
 		else
@@ -1688,37 +1732,29 @@ localVariableImportance <- function(object, nbVariables = 2, Xtest = NULL, predO
 {
 	object = filter.object(object)
 	rufObject = object$forest$object	
-	if (is.null(object$predictionObject))
-	{
-		if (is.null(predObject)) 
-		{ 
-			if (is.null(Xtest))
-			{ stop("Local variable importance can not be computed. please provide test data.") }
-			else
-			{
-				predObject = predict(object, Xtest, type = "all")
-				majority.vote = as.numeric(predObject$majority.vote) 
-				pred.rufObject = predObject$votes.data
-			}
+	if (is.null(predObject)) 
+	{ 
+		if (is.null(Xtest))
+		{ stop("Local variable importance can not be computed. please provide test data.") }
+		else
+		{
+			predObject = predict(object, Xtest, type = "all")
+			majority.vote = as.numeric(predObject$majority.vote) 
+			pred.rufObject = predObject$votes.data
 		}
-		else 
-		{  
-			if (is.null(predObject$majority.vote))
-			{ 
-				stop("Local variable importance can not be computed. Please provide full prediction object (type = 'all') when calling predict()") 
-			}
-			else
-			{			
-				majority.vote = as.numeric(predObject$majority.vote) 
-				pred.rufObject = predObject$votes.data
-			}
+	}
+	else 
+	{  
+		if (is.null(predObject$majority.vote))
+		{ 
+			stop("Local variable importance can not be computed. Please provide full prediction object (type = 'all') when calling predict()") 
+		}
+		else
+		{			
+			majority.vote = as.numeric(predObject$majority.vote) 
+			pred.rufObject = predObject$votes.data
 		}		
 	}
-	else
-	{   
-		majority.vote = as.numeric(object$predictionObject$majority.vote)
-		pred.rufObject = object$predictionObject$votes.data
-	}			
 	ntree = length(rufObject)
 	if (is.null(pred.rufObject))
 	{ stop ("no data to evaluate importance") }
@@ -1737,7 +1773,7 @@ localVariableImportance <- function(object, nbVariables = 2, Xtest = NULL, predO
 			else
 			{
 				if ((max_threads) < threads) 
-				{	cat("Warning : number of threads indicated by user is higher than logical threads in this computer.\n") }
+				{	cat("Warning : number of threads is higher than logical threads in this computer.\n") }
 			}
 			{
 				#require(doParallel)				
@@ -1921,10 +1957,10 @@ importance.randomUniformForest <- function(object, maxVar = 30, maxInteractions 
 		colnames(partialDependence) = names(fOrder)[1:minDim2]
 		rownames(partialDependence) = names(sOrder)[1:minDim2]
 		partialDependence = partialDependence/(2*nrow(obsVarImportance2))
-		avg2ndOrder = colMeans(partialDependence)
-		avg1rstOrder = c(rowMeans(partialDependence),0)
-		partialDependence = rbind(partialDependence, avg2ndOrder)
-		partialDependence = cbind(partialDependence, avg1rstOrder)		
+		avg1rstOrder = colMeans(partialDependence)
+		avg2ndOrder = c(rowMeans(partialDependence),0)
+		partialDependence = rbind(partialDependence, avg1rstOrder)
+		partialDependence = cbind(partialDependence, avg2ndOrder)
 		minDim = min(10, minDim2)
 		varImportanceOverInteractions = vector()
 		for (i in 1:minDim2)
@@ -1963,7 +1999,6 @@ importance.randomUniformForest <- function(object, maxVar = 30, maxInteractions 
 
 partialImportance <- function(X, object, whichClass = NULL, threshold = NULL, thresholdDirection = c("low", "high"), border = NA, nLocalFeatures = 5)
 {
-	par(bg = "grey")
 	if (is.list(object$localVariableImportance))
 	{
 		Z = object$localVariableImportance$obsVariableImportance
@@ -1974,7 +2009,7 @@ partialImportance <- function(X, object, whichClass = NULL, threshold = NULL, th
 		whichClass2 = whichClassNames[which(numericClassNames == whichClass)]	
 		idx = which(Z[,1] == whichClass)
 		Z = Z[idx, ,drop = FALSE]		
-		if (dim(Z)[1] <= 1) { stop("not enough obervations found using this class.") }
+		if (dim(Z)[1] <= 1) { stop("Not enough observations found using this class.") }
 	}
 	else
 	{   
@@ -1985,7 +2020,7 @@ partialImportance <- function(X, object, whichClass = NULL, threshold = NULL, th
 			else {  idx = which(Z[,1] > threshold)  }
 			Z = Z[idx,]
 			
-			if (dim(Z)[1] < 1) { stop("no obervations found using this threshold.") }
+			if (dim(Z)[1] < 1) { stop("No observations found using this threshold.\n") }
 		}
 	}	
 	Z = Z[,-1]
@@ -2014,7 +2049,7 @@ partialImportance <- function(X, object, whichClass = NULL, threshold = NULL, th
 	return(obsObject)
 }
 
-partialDependenceOverResponses <- function(Xtest, importanceObject, whichFeature = NULL, whichOrder = c("first", "second", "all"), outliersFilter = FALSE, plotting = TRUE, followIdx = FALSE)
+partialDependenceOverResponses <- function(Xtest, importanceObject, whichFeature = NULL, whichOrder = c("first", "second", "all"), outliersFilter = FALSE, plotting = TRUE, followIdx = FALSE, maxClasses = 10)
 {
 	FeatureValue = Response = Class = Observations = NULL
 	if (!is.null(whichFeature))
@@ -2050,28 +2085,82 @@ partialDependenceOverResponses <- function(Xtest, importanceObject, whichFeature
 	partialDependenceMatrix = sortMatrix(partialDependenceMatrix, 1)	
 	NAIdx = which(is.na(partialDependenceMatrix))	
 	if (length(NAIdx) > 0) {  partialDependenceMatrix = partialDependenceMatrix[-NAIdx,] }	
-	if (outliersFilter)
+	if (outliersFilter & (!is.factor(Xtest[,whichFeature])))
 	{
 		highOutlierIdx =  which(partialDependenceMatrix[,1] > quantile(partialDependenceMatrix[,1],0.95))
 		lowOutlierIdx =  which(partialDependenceMatrix[,1] < quantile(partialDependenceMatrix[,1],0.05))
 		if (length(highOutlierIdx) > 0 | length(lowOutlierIdx) > 0) 
 		{	partialDependenceMatrix = partialDependenceMatrix[-c(lowOutlierIdx,highOutlierIdx),]	}
 	}	
-	idx = partialDependenceMatrix[,3]
-	partialDependenceMatrix = partialDependenceMatrix[,-3]
+	if (is.vector(partialDependenceMatrix) )
+	{ stop ("Not enough points to plot partial dependencies. Please increase order of interaction when computing importance.") }	
+	if (dim(partialDependenceMatrix)[1] < 10)
+	{ stop ("Not enough points to plot partial dependencies. Please increase order of interaction when computing importance.") }
+	else
+	{	
+		idx = partialDependenceMatrix[,3]
+	    partialDependenceMatrix = partialDependenceMatrix[,-3]
+		flagFactor = 0
+		smallLength = length(unique(Xtest[,whichFeature]))
+		n = nrow(Xtest)		
+		if ( ((smallLength < maxClasses) | is.factor(Xtest[,whichFeature])) & (smallLength/n <  1/5)) 
+		{
+			featureLevels = levels(as.factor(Xtest[,whichFeature]))
+			testNumeric = is.numeric(as.numeric(featureLevels))
+			if (testNumeric & length(rmNA(as.numeric(featureLevels))) > 0)
+			{  flagFactor = 1 }
+			else
+			{	
+				if (is.matrix(importanceObject$localVariableImportance))
+				{  
+					classFeature = unique(partialDependenceMatrix[,1])
+					B = round(as.numeric(partialDependenceMatrix[,2]),4)		 
+					A = as.numeric(factor2matrix(partialDependenceMatrix[,1, drop= FALSE]))
+					partialDependenceMatrix = cbind(A,B)
+					colnames(partialDependenceMatrix) = c("Class", "Response")
+					flagFactor = 1 
+					valueFeature = unique(A)
+					
+					referenceTab = cbind(classFeature, valueFeature)
+					colnames(referenceTab) = c("category", "numeric value")
+									
+					cat("categorical values have been converted to numeric values :\n")
+					print(referenceTab)
+					cat("\n")
+				}
+				else
+				{	partialDependenceMatrix[,1] = featureLevels[partialDependenceMatrix[,1]] }
+			}
+		}
+    }		
 	if (plotting)
 	{
 		if (dim(partialDependenceMatrix)[1] < 1)
-		{ stop ("not enough points to plot partial dependencies. Please increase order of interaction") }		
+		{ stop ("Not enough points to plot partial dependencies. Please increase order of interaction when computing importance.") }	
 		if (is.matrix(importanceObject$localVariableImportance))
 		{
 			#require(ggplot2) || install.packages("ggplot2")
-			colnames(partialDependenceMatrix) = c("FeatureValue", "Response")
-			partialDependenceMatrix = data.frame(partialDependenceMatrix)
+			if ( ((smallLength < maxClasses) | is.factor(Xtest[,whichFeature])) & (smallLength/n <  1/5)) 
+		    {
+				A = if (flagFactor) { as.factor(partialDependenceMatrix[,1]) } else { partialDependenceMatrix[,1] } 
+				B = round(as.numeric(partialDependenceMatrix[,2]),4)				
+				partialDependenceMatrix = data.frame(A , B)
+				colnames(partialDependenceMatrix) = c("Class", "Response")
+								
+				plot(qplot(Class, Response, data = partialDependenceMatrix, geom = c("boxplot", "jitter"), 
+				outlier.colour = "green", outlier.size = 2.5, fill= Class, main = "Partial dependence over predictor",
+				xlab = colnames(Xtest)[whichFeature], ylab = "Response"))
+			}
+			else
+			{			
+				colnames(partialDependenceMatrix) = c("FeatureValue", "Response")
+				partialDependenceMatrix = data.frame(partialDependenceMatrix)
 			
-			tt <- ggplot(partialDependenceMatrix, aes(x = FeatureValue, y = Response))
-			plot(tt +  geom_point(colour = "lightblue") + stat_smooth(fill = "green", colour = "darkgreen", size = 1) + 
-			labs(title = "Partial dependence over predictor", x = colnames(Xtest)[whichFeature], y = "Response"))
+				tt <- ggplot(partialDependenceMatrix, aes(x = FeatureValue, y = Response))
+				plot(tt +  geom_point(colour = "lightblue") + stat_smooth(fill = "green", colour = "darkgreen", 
+				size = 1) + 
+				labs(title = "Partial dependence over predictor", x = colnames(Xtest)[whichFeature], y = "Response"))
+			}
 		}
 		else
 		{
@@ -2081,7 +2170,20 @@ partialDependenceOverResponses <- function(Xtest, importanceObject, whichFeature
 			variablesNames = unique(partialDependenceMatrix$Class)
 			partialDependenceMatrix$Class = factor(partialDependenceMatrix$Class)
 			levels(partialDependenceMatrix$Class) = colnames(importanceObject$localVariableImportance$classVariableImportance)[sort(variablesNames)]			
-			plot(qplot(Class, Observations, data = partialDependenceMatrix, geom = c("boxplot", "jitter"), outlier.colour = "green", outlier.size = 2.5, fill= Class, main = "Partial dependence over predictor", xlab = "", ylab = colnames(Xtest)[whichFeature]))
+			if ( ((smallLength < maxClasses) | is.factor(Xtest[,whichFeature])) & (smallLength/n <  1/5))
+			{   
+				par(las=1)
+				par(bg= "lightgrey")
+				mosaicplot(t(table(partialDependenceMatrix)), color = sort(heat.colors(length(featureLevels)), 
+			    decreasing = FALSE), border = NA, ylab = colnames(Xtest)[whichFeature],  xlab = "Class",
+				main = "Partial dependence over predictor")
+			}
+			else
+			{
+				plot(qplot(Class, Observations, data = partialDependenceMatrix, geom = c("boxplot", "jitter"), 
+				outlier.colour = "green", outlier.size = 2.5, fill= Class, main = "Partial dependence over predictor",
+				xlab = "", ylab = colnames(Xtest)[whichFeature]))
+			}
 		}
 	}
 	else
@@ -2101,22 +2203,22 @@ partialDependenceOverResponses <- function(Xtest, importanceObject, whichFeature
 	{  return(partialDependenceMatrix)  }
 }	
 
-partialDependenceBetweenPredictors <- function(Xtest, importanceObject, features, whichOrder = c("first", "second", "all"), perspective = FALSE, outliersFilter = FALSE)
+partialDependenceBetweenPredictors <- function(Xtest, importanceObject, features, whichOrder = c("first", "second", "all"), perspective = FALSE, outliersFilter = FALSE, maxClasses = 10)
 {
 	Variable1 = Variable2 = SameClass = ..level.. = Response = NULL
 	if (length(features) != 2) { stop("Please provide two features.") }	
 	#require(ggplot2)
 	graphics.off()	
 	pD1 <- partialDependenceOverResponses(Xtest, importanceObject, whichFeature = features[1], whichOrder = whichOrder, 
-		outliersFilter = outliersFilter, plotting = FALSE, followIdx = TRUE)	
+		outliersFilter = outliersFilter, plotting = FALSE, followIdx = TRUE, maxClasses = maxClasses)	
 	pD2 <- partialDependenceOverResponses(Xtest, importanceObject, whichFeature = features[2], whichOrder = whichOrder, 
-		outliersFilter = outliersFilter, plotting = FALSE, followIdx = TRUE)	
+		outliersFilter = outliersFilter, plotting = FALSE, followIdx = TRUE, maxClasses = maxClasses)	
 	sameIdx2 = find.idx(pD1$idx, pD2$idx)
 	sameIdx1 = find.idx(pD2$idx, pD1$idx)
 	minDim = length(sameIdx1)	
 	if ( (minDim < 10) | (length(sameIdx2) < 10)) { stop("Not enough points. Please use option whichOrder = 'all'") }	
 	pD1 = pD1$partialDependenceMatrix; pD2 = pD2$partialDependenceMatrix;
-	pD11 = factor2matrix(pD1)[sameIdx1,]; pD22 = factor2matrix(pD2)[sameIdx2,]
+	pD11 = factor2matrix(pD1)[sameIdx1,]; pD22 = factor2matrix(pD2)[sameIdx2,]		
 	if (!is.matrix(importanceObject$localVariableImportance))
 	{
 		minN = min(nrow(pD11), nrow(pD22))
@@ -2132,33 +2234,86 @@ partialDependenceBetweenPredictors <- function(Xtest, importanceObject, features
 			features = colnames(Xtest)[c(fName1, fName2)]
 		}		
 		Xi = as.data.frame(Xi); colnames(Xi) = c("Variable1", "Variable2")
-		Xj = as.data.frame(Xj); colnames(Xj) = c("Variable1", "Variable2")
+		Xj = as.data.frame(Xj); colnames(Xj) = c("Variable1", "Variable2")		
 		Xi = cbind(Xi, rep(1, nrow(Xi)))
 		Xj = cbind(Xj, rep(0, nrow(Xj)))		
 		colnames(Xj)[3] = colnames(Xi)[3] = "SameClass"
 		X = rbind(Xi, Xj)
-		X[,3] = ifelse(X[,3] == 1, TRUE, FALSE)		 
+		X[,3] = ifelse(X[,3] == 1, TRUE, FALSE)
+		smallLength = length(unique(Xtest[,features[1]]))
+		n = nrow(Xtest)	
+		Xnumeric = X
+		ggplotFlag1 = ggplotFlag2 = 1
+		if ( ((smallLength < maxClasses) | is.factor(Xtest[,features[1]])) & (smallLength/n <  1/5)) 
+		{
+			featureLevels = levels(factor(Xtest[,features[1]]))
+			testNumeric = is.numeric(as.numeric(featureLevels))
+			if (testNumeric & length(rmNA(as.numeric(featureLevels))) > 0)	{ 	ggplotFlag1 = 0 	}
+			else  { X[,1] = featureLevels[X[,1]] }			
+		}		
+		smallLength = length(unique(Xtest[,features[2]]))
+		if ( ((smallLength < maxClasses) | is.factor(Xtest[,features[2]])) & (smallLength/n < 1/5)) 
+		{
+			featureLevels = levels(factor(Xtest[,features[2]]))
+			testNumeric = is.numeric(as.numeric(featureLevels))
+			if (testNumeric & length(rmNA(as.numeric(featureLevels))) > 0)	{ 	ggplotFlag2 = 0 	}
+			else  { X[,2] = featureLevels[X[,2]] }		
+		}		 
 		dev.new() 
-		tt <- ggplot(X, aes(x = Variable1, y = Variable2, colour = SameClass))	
-		plot(tt + geom_point(size = 2) + labs(title = "Dependence between predictors", x = features[1], y = features[2]) 
-			+  scale_colour_manual("Same class", values = c("red", "green") )
-		)
+		tt <- ggplot(X, aes(x = Variable1, y = Variable2, colour = SameClass))		
+		if (ggplotFlag1 == 1)
+		{
+			plot(tt + geom_point(size = 2) 
+				+ labs(title = "Dependence between predictors", x = features[1], y = features[2])	
+				+ scale_colour_manual("Same class", values = c("red", "green") )
+				+ theme(axis.text.x = element_text(angle = 60, hjust = 1))
+			)
+		}
+		else
+		{
+			plot(tt + geom_point(size = 2) 
+				+ labs(title = "Dependence between predictors", x = features[1], y = features[2])	
+				+ scale_colour_manual("Same class", values = c("red", "green") )
+			)
+		}
 		dev.new()
-		cde1 <- geom_histogram(position = "fill", binwidth = diff(range(X[,1]))/4, alpha = 7/10)
-		cde2 <- geom_histogram(position = "fill", binwidth = diff(range(X[,2]))/4, alpha = 7/10)
-		tt1 <- ggplot(X, aes(x = Variable1, fill = SameClass))
-		plot(tt1 + cde1 
-			+ labs(title = "Class distribution", x = features[1], y = "Frequency")
-			+ scale_fill_manual(paste("Same class as", features[2]),values = c("red", "lightgreen"))
-		)		
+		cde1 <- geom_histogram(position = "fill", binwidth = diff(range(Xnumeric[,1]))/4, alpha = 7/10)
+		cde2 <- geom_histogram(position = "fill", binwidth = diff(range(Xnumeric[,2]))/4, alpha = 7/10)
+		tt1 <- ggplot(X, aes(x = Variable1, fill = SameClass))		
+		if (ggplotFlag1 == 1)
+		{
+			plot(tt1 + cde1 
+				+ labs(title = "Class distribution", x = features[1], y = "Frequency")
+				+ scale_fill_manual(paste("Same class as", features[2]),values = c("red", "lightgreen"))
+				+ theme(axis.text.x = element_text(angle = 60, hjust = 1))
+			)
+		}
+		else
+		{
+			plot(tt1 + cde1 
+				+ labs(title = "Class distribution", x = features[1], y = "Frequency")
+				+ scale_fill_manual(paste("Same class as", features[2]),values = c("red", "lightgreen"))
+			)
+		}		
 		dev.new()
-		tt1 <- ggplot(X, aes(x = Variable2, fill = SameClass))
-		plot(tt1 + cde2 
-			+ labs(title = "Class distribution", x = features[2], y = "Frequency")
-			+ scale_fill_manual(paste("Same class as", features[1]),values = c("red", "lightgreen"))
-		)				
+		tt1 <- ggplot(X, aes(x = Variable2, fill = SameClass))		
+		if (ggplotFlag2 == 1)
+		{
+			plot(tt1 + cde2 
+				+ labs(title = "Class distribution", x = features[2], y = "Frequency")
+				+ scale_fill_manual(paste("Same class as", features[1]),values = c("red", "lightgreen"))
+				+ theme(axis.text.x = element_text(angle = 60, hjust = 1))
+			)
+		}
+		else
+		{
+			plot(tt1 + cde2 
+				+ labs(title = "Class distribution", x = features[2], y = "Frequency")
+				+ scale_fill_manual(paste("Same class as", features[1]),values = c("red", "lightgreen"))
+			)
+		}		
 		dev.new()
-		tt2 <- ggplot(X, aes( x = Variable1, y = Variable2, z = SameClass))	
+		tt2 <- ggplot(Xnumeric, aes( x = Variable1, y = Variable2, z = SameClass))	
 			try(plot(tt2 + stat_density2d(aes(fill = ..level.., alpha =..level..), geom = "polygon") 
 			+ scale_fill_gradient2(low = "lightyellow", mid = "yellow", high = "red")
 			+ labs(title = "Heatmap of dependence between predictors", x = features[1], y = features[2])
@@ -2187,24 +2342,25 @@ partialDependenceBetweenPredictors <- function(Xtest, importanceObject, features
 			features = colnames(Xtest)[c(fName1, fName2)]
 		}		
 		dev.new()
-	    XiXj = as.data.frame(cbind(Xi[,1], Xj[,1], Z)); colnames(XiXj) = c("Variable1", "Variable2", "Response")		
+		XiXj = as.data.frame(cbind(Xi[,1], Xj[,1], Z)); colnames(XiXj) = c("Variable1", "Variable2", "Response")		
 		tt <- ggplot(XiXj, aes(x = Variable1, y = Variable2, z = Response))
 		ttMore <- tt + stat_density2d(aes(fill = ..level.., alpha =..level..), geom = "polygon") +
 			scale_fill_gradient2(low = "lightyellow", mid = "yellow", high = "red") +
-			labs(title = "Local heatmap of dependence (with frequency and intensity of Response)", x = features[1], y = features[2])
-		try(plot(ttMore), silent = TRUE)
+			labs(title = "Local Heatmap of dependence (with frequency and intensity of Response)", 
+			x = features[1], y = features[2])
+		try(plot(ttMore), silent= TRUE)		
 		dev.new()
 		fourQuantilesCut = cut(Z,4)
 		XiXj[,3] = fourQuantilesCut		
 		dataCuts = table(fourQuantilesCut)		
-		while (length(which(dataCuts < 5)) > 0)
+		if (length(which(dataCuts < 5)) > 0)
 		{
 			lowDataCuts = names(dataCuts[which(dataCuts < 5)])
 			rmIdx = find.idx(lowDataCuts, XiXj[,3])			
 			XiXj = XiXj[,-3]
 			Z = Z[-rmIdx]
 			fourQuantilesCut = cut(Z, 4)
-			XiXj = cbind(XiXj[-rmIdx,], fourQuantilesCut) 		
+			XiXj = cbind(XiXj[-rmIdx,], fourQuantilesCut)		
 			dataCuts = table(fourQuantilesCut)
 			colnames(XiXj)[3] = "Response"
 		}
@@ -2213,123 +2369,177 @@ partialDependenceBetweenPredictors <- function(Xtest, importanceObject, features
 	    tt1 <- ggplot(XiXj, aes(x = Variable1, y = Variable2, z = Response)) 
 		try(plot(tt1 + stat_density2d(aes(fill = ..level.., alpha =..level..), geom = "polygon") 
 			+  scale_fill_gradient2(low = "lightyellow", mid = "yellow", high = "red")	
-			+ labs(title = "Global heatmap of dependence (with intensity of Response)", x = features[1], y = features[2]) 
-		), silent = TRUE)
+			+ labs(title = "Global Heatmap of dependence (with intensity of Response)", x = features[1], 
+			y = features[2]) 
+		), silent = TRUE)				
 		dev.new()
-		try(plot(tt + geom_point(aes(colour = Response, size= Response))
-			+  stat_smooth(fill = "lightgrey", colour = "grey", size = 1) 
-			+ labs(title = "Dependence between Predictors", x = features[1], y = features[2])		
+		try(plot(tt + geom_point(aes(colour = Response, size = Response))
+		    +  stat_smooth(fill = "lightgrey", colour = "grey", size = 1) 
+			+ labs(title = "Dependence between predictors", x = features[1], y = features[2])		
 			+ scale_colour_gradient2(low = "blue", mid = "green", high = "red") 	
-		), silent = TRUE)		
-		if (perspective)
-		{
-			gridSize = 150; gridLag = 100			
-			dev.new()
-			x = XiXj[,1]
-			y = XiXj[,2]
-			z = Z			
-			n = length(x)			
-			xyz = cbind(x,y,z)
-			xyz.byX = sortMatrix(xyz,1)
-			xyz.byY = sortMatrix(xyz,2)			
-			newX = xyz.byX[,1]
-			newY = xyz.byY[,2]			
-			dummyForRepX = dummyForRepY = rep(0,n)
-			for (i in 2:n)
-			{ 
-				if (newX[i] == newX[i-1])
-				{	dummyForRepX[i] = 1 }
-				
-				if (newY[i] == newY[i-1])
-				{	dummyForRepY[i] = 1 }
-			}			
-			newIdx = which(dummyForRepY == 0 & dummyForRepX == 0)
-			newX = newX[newIdx]
-			newY = newY[newIdx]			
-			if ( (gridSize + gridLag) > length(newX))
-			{
-				interp.1 = seq(min(newX) + 0.1, max(newX) - 0.1,length = gridSize + gridLag - length(newX))
-				interp.2 = seq(min(newY) + 0.1, max(newY) - 0.1,length = gridSize + gridLag- length(newY))				
-				newX = sort(c(newX, interp.1))
-				newY = sort(c(newY, interp.2))
-			}			
-			duplicatesX = duplicated(newX)
-			duplicatesY = duplicated(newY)			
-			if (sum(duplicatesX) > 0)
-			{
-				newX = newX[!duplicatesX]
-				newY = newY[!duplicatesX]
-			}			
-			if (sum(duplicatesY) > 0)
-			{
-				newY = newY[!duplicatesY]
-				newX = newX[!duplicatesY]
-			}			
-			newXYZ = cbind(newX, newY, rep(NA, length(newX)))
-			proxyM = fillNA2.randomUniformForest(rbind(xyz, newXYZ))			
-			xyz.dim =  dim(xyz)
-			nn = length(newX)						
-			newZ = matrix(NA, nn, nn)			
-			for (i in 1:nn)
-			{
-				for (j in 1:nn)
-				{	newZ[i,j] = mean(proxyM[which(newX[i] == proxyM[,1] | newY[j] == proxyM[,2]), 3])	}
-			}											
-			L.smoothNewZ = t(apply(newZ, 1, function(Z) lagFunction(Z, lag = gridLag, FUN  = mean, inRange = TRUE)))
-			C.smoothNewZ = apply(newZ, 2, function(Z) lagFunction(Z, lag = gridLag, FUN  = mean, inRange = TRUE))			
-			smoothIdx = round(seq(1, nrow(L.smoothNewZ), length = gridLag),0)
-			newX = newX[-smoothIdx]
-			newY = newY[-smoothIdx]
-			C.smoothNewZ = C.smoothNewZ[,-smoothIdx]
-			L.smoothNewZ = L.smoothNewZ[-smoothIdx,]
-			newZ = 0.5*(C.smoothNewZ + L.smoothNewZ)			
-			if (length(newX) > gridSize)
-			{
-				sampleIdx = sort(sample(nn, gridSize))
-				newX = newX[sampleIdx]
-				newY = newY[sampleIdx]
-				newZ = newZ[sampleIdx, sampleIdx]
-			}
-			highOutlierIdx2 <- apply(newZ, 2, function(Z) which(Z > quantile(Z, 0.975)))
-			lowOutlierIdx2 <- apply(newZ, 2, function(Z) which(Z < quantile(Z, 0.025)))
-			ouliersIdx2 <- c(lowOutlierIdx2, highOutlierIdx2)
-			if (length(ouliersIdx2) > 0) 
-			{	
-				newZ = newZ[-ouliersIdx2, -ouliersIdx2]  	
-				newX = newX[-ouliersIdx2]
-				newY = newY[-ouliersIdx2]
-			}
-			rm(lowOutlierIdx2);
-			rm(highOutlierIdx2);
-			highOutlierIdx2 <- apply(newZ, 1, function(Z) which(Z > quantile(Z, 0.975)))
-			lowOutlierIdx2 <-  apply(newZ, 1, function(Z) which(Z < quantile(Z, 0.025)))
-			ouliersIdx2 <- c(lowOutlierIdx2, highOutlierIdx2)
-			if (length(ouliersIdx2) > 0) 
-			{	
-				newZ = newZ[-ouliersIdx2, -ouliersIdx2]  	
-				newX = newX[-ouliersIdx2]
-				newY = newY[-ouliersIdx2]
-			}					
-			par(bg = "grey")
-			try(persp.withcol(newX, newY, newZ, heat.colors, nrow(newZ), theta = -40, phi = 15, xlab = features[1], ylab = features[2], zlab = "Response", main = "Dependence between Predictors and (smoothed) effect over Response", ticktype = "detailed", box = TRUE, expand = 0.5, shade = 0.15), silent = TRUE)
-		}
+		), silent = TRUE)
 	}	
 	#if (.Platform$OS.type == "windows") { arrangeWindows("vertical", preserve = FALSE) }
 	idxf1 = which(colnames(importanceObject$partialDependence) ==  features[1])
 	idxf2 = which(rownames(importanceObject$partialDependence) ==  features[2])	
-	cat("\nLevel of interactions between", features[1], "and" , features[2], "at first order:", 
-	round(importanceObject$partialDependence[idxf2, idxf1],4), "\n", sep=" ")	
+	if ( (length(idxf1) > 0) &  (length(idxf2) > 0) ) 
+	{
+		np = dim(importanceObject$partialDependence)
+		cat("\nLevel of interactions between ", features[1], " and " , features[2], " at first order: ", 
+		round(importanceObject$partialDependence[idxf2, idxf1],4), "\n", "(", round(round(importanceObject$partialDependence[idxf2, idxf1],4)/max(importanceObject$partialDependence[-np[1], -np[2]])*100,2), "% of the feature(s) with maximum level", ")\n",  sep="")
+	}
+	else
+	{  cat("\nFeatures do not appear to have strong co-influence on the response.\n") }	
 	idxf1 = which(rownames(importanceObject$partialDependence) == features[1])	
 	if (length(idxf1) > 0)	
 	{ 
 		idxf2 = which(colnames(importanceObject$partialDependence) ==  features[2]) 
 		if (length(idxf2) > 0)	
 		{	
-			cat("Level of interactions between", features[1], "and", features[2], "at second order:", 
-			round(importanceObject$partialDependence[idxf1, idxf2],4), "\n", sep=" ")		
+			cat("Level of interactions between ", features[1], " and ", features[2], " at second order: ", 
+			round(importanceObject$partialDependence[idxf1, idxf2],4), "\n", "(", round(round(importanceObject$partialDependence[idxf1, idxf2],4)/max(importanceObject$partialDependence[-np[1], -np[2]])*100,2), "% of the feature(s) with maximum level", ")\n",  sep="")
 		}
 	}
-	cat("\nPlease use R menu to tile vertically windows and see all plots.\n")
+	cat("\n")	
+	if (perspective & is.matrix(importanceObject$localVariableImportance))
+	{
+		dev.new()
+		gridSize = 100; gridLag = 100
+		x = XiXj[,1]
+		y = XiXj[,2]
+		z = Z			
+		n = length(x)		
+		xyz = cbind(x,y,z)
+		if (n > 5*gridSize)
+		{
+			sampleIdx = sample(n, 500)
+			xyz = xyz[sampleIdx,]
+			n = length(sampleIdx)
+		}
+		xyz.byX = sortMatrix(xyz,1)
+		xyz.byY = sortMatrix(xyz,2)			
+		newX = xyz.byX[,1]
+		newY = xyz.byY[,2]		
+		dummyForRepX = dummyForRepY = rep(0,n)
+		for (i in 2:n)
+		{ 
+			if (newX[i] == newX[i-1]) {	dummyForRepX[i] = 1 }
+			if (newY[i] == newY[i-1]) {	dummyForRepY[i] = 1 }
+		}			
+		newIdx = which(dummyForRepY == 0 & dummyForRepX == 0)
+		newX = newX[newIdx]
+		newY = newY[newIdx]			
+		if ( (gridSize + gridLag) > length(newX))
+		{
+			interp.1 = seq(min(newX) + 0.1, max(newX) - 0.1,length = gridSize + gridLag - length(newX))
+			interp.2 = seq(min(newY) + 0.1, max(newY) - 0.1,length = gridSize + gridLag- length(newY))				
+			newX = sort(c(newX, interp.1))
+			newY = sort(c(newY, interp.2))
+		}			
+		duplicatesX = duplicated(newX)
+		duplicatesY = duplicated(newY)			
+		if (sum(duplicatesX) > 0)
+		{
+			newX = newX[!duplicatesX]
+			newY = newY[!duplicatesX]
+		}			
+		if (sum(duplicatesY) > 0)
+		{
+			newY = newY[!duplicatesY]
+			newX = newX[!duplicatesY]
+		}			
+		newXYZ = cbind(newX, newY, rep(NA, length(newX)))
+		proxyM = fillNA2.randomUniformForest(rbind(xyz, newXYZ), nodesize = 2)						
+		xyz.dim =  dim(xyz)
+		nn = length(newX)						
+		newZ = matrix(NA, nn, nn)			
+		for (i in 1:nn)
+		{
+			for (j in 1:nn)
+			{	newZ[i,j] = mean(proxyM[which(newX[i] == proxyM[,1] | newY[j] == proxyM[,2]), 3])	}
+		}											
+		L.smoothNewZ = t(apply(newZ, 1, function(Z) lagFunction(Z, lag = gridLag, FUN  = mean, inRange = TRUE)))
+		C.smoothNewZ = apply(newZ, 2, function(Z) lagFunction(Z, lag = gridLag, FUN  = mean, inRange = TRUE))			
+		smoothIdx = round(seq(1, nrow(L.smoothNewZ), length = gridLag),0)
+		newX = newX[-smoothIdx]
+		newY = newY[-smoothIdx]
+		C.smoothNewZ = C.smoothNewZ[,-smoothIdx]
+		L.smoothNewZ = L.smoothNewZ[-smoothIdx,]
+		newZ = 0.5*(C.smoothNewZ + L.smoothNewZ)		
+		highOutlierIdx2 <- apply(newZ, 2, function(Z) which(Z >= quantile(Z, 0.975)))
+		lowOutlierIdx2 <- apply(newZ, 2, function(Z) which(Z <= quantile(Z, 0.025)))
+		ouliersIdx2 <- c(lowOutlierIdx2, highOutlierIdx2)
+		if (length(ouliersIdx2) > 0) 
+		{	
+			newZ = newZ[-ouliersIdx2, -ouliersIdx2]  	
+			newX = newX[-ouliersIdx2]
+			newY = newY[-ouliersIdx2]
+		}
+		rm(lowOutlierIdx2);
+		rm(highOutlierIdx2);
+		highOutlierIdx2 <- apply(newZ, 1, function(Z) which(Z >= quantile(Z, 0.975)))
+		lowOutlierIdx2 <-  apply(newZ, 1, function(Z) which(Z <= quantile(Z, 0.025)))
+		ouliersIdx2 <- c(lowOutlierIdx2, highOutlierIdx2)
+		if (length(ouliersIdx2) > 0) 
+		{	
+			newZ = newZ[-ouliersIdx2, -ouliersIdx2]  	
+			newX = newX[-ouliersIdx2]
+			newY = newY[-ouliersIdx2]
+		}			
+		nNewZ = nrow(newZ)
+		if (nNewZ > gridSize)
+		{
+			sampleIdx = sort(sample(nNewZ, gridSize))
+			newX = newX[sampleIdx]
+			newY = newY[sampleIdx]
+			newZ = newZ[sampleIdx, sampleIdx]
+		}
+		par(bg = "grey")
+		flag = endCondition = 0
+		lastANSWER = -40
+		newX = as.matrix(newX)
+		newY = as.matrix(newY)
+		newZ = as.matrix(newZ)
+		while (!endCondition)
+		{
+			if (!flag)
+			{
+				try(persp.withcol(newX, newY, newZ, heat.colors, nrow(newZ), theta = -40, phi = 20, xlab = features[1], ylab = features[2], zlab = "Response", main = "Dependence between predictors and effect over Response", ticktype = "detailed", box = TRUE, expand = 0.5, shade = 0.15), silent = FALSE)
+			}			
+			ANSWER <- readline(cat("To get another view of 3D representation\nplease give a number between -180 and 180 (default one = -40).\nType 'b' to remove border.\nTo see animation please type 'a'.\nType Escape to leave :\n"))
+			if ( is.numeric(as.numeric(ANSWER)) & !is.na(as.numeric(ANSWER)) )
+			{  
+				flag = 1
+				try(persp.withcol(newX, newY, newZ, heat.colors, nrow(newZ), theta = ANSWER, phi = 20, xlab = features[1], ylab = features[2], zlab = "Response", main = "Dependence between predictors and effect over Response", ticktype = "detailed", box = TRUE, expand = 0.5, shade = 0.15), 
+				silent = FALSE)
+				lastANSWER = ANSWER
+			}
+			else
+			{ 
+				if (as.character(ANSWER) == "b")
+				{
+					flag = 1
+					try(persp.withcol(newX, newY, newZ, heat.colors, nrow(newZ), theta = lastANSWER, phi = 20, xlab = features[1], ylab = features[2], zlab = "Response", main = "Dependence between predictors and effect over Response", ticktype = "detailed", box = TRUE, expand = 0.5, border = NA, shade = 0.15), silent = FALSE)
+				}
+				else
+				{
+					if ( as.character(ANSWER) == "a")
+					{
+						flag = 1
+						nn = nrow(newZ)
+						circle = -180:180
+						for (i in circle)
+						{
+							try(persp.withcol(newX, newY, newZ, heat.colors, nn, theta = i, phi = 20, 
+							xlab = features[1], ylab = features[2], zlab = "Response", main = "Dependence between predictors and effect over Response", ticktype = "detailed", box = TRUE, border = NA, expand = 0.5, shade = 0.15), silent = FALSE)	
+						}
+					}				
+					else				
+					{ endCondition = 1	}
+				}
+			}
+		}			
+	}		
 	return(X)
 }
 
@@ -2349,17 +2559,22 @@ plot.importance <- function(x, nGlobalFeatures = 30, nLocalFeatures = 5, Xtest =
 {
 	cat("\nPlease use R menu to tile vertically windows and see all plots.\n")
 	object <- x
+	if (nrow(x$partialDependence) < 3)
+	{
+		stop("Not enough (or no) interactions between variables. Please use partialDependenceOverResponses( )\n and partialDependenceBetweenPredictors( ) functions to assess importance deeper.") 
+	}
 	Variable = Response = NULL
 	if (!is.null(Xtest))
 	{
 		if (!is.null(formulaInput))
 		{
 			mf <- model.frame(formula = formulaInput, data = as.data.frame(Xtest))
-			Xtest <- model.matrix(attr(mf, "terms"), data = mf)[,-1]	
+			Xtest <- model.matrix(attr(mf, "terms"), data = mf)[,-1]
+			cat("Warning : please not that categorical variables have lost their original values when using formula.\nIt is strongly recommended to not use formula if one wants to assess importance\n \n.")
 		}
 		else
 		{		
-			Xtest = NAfactor2matrix(Xtest)
+			#Xtest = NAfactor2matrix(Xtest)
 			matchNA = (length(which(is.na(Xtest))) > 0)				
 			if (matchNA) 
 			{ 
@@ -2395,13 +2610,13 @@ plot.importance <- function(x, nGlobalFeatures = 30, nLocalFeatures = 5, Xtest =
 		newPartialDependence =  rbind(cbind(newPartialDependence, OthersVariablesRow), c(OthersVariablesCol, corner))
 		colnames(newPartialDependence)[ncol(newPartialDependence)] = "Other features"
 		rownames(newPartialDependence)[nrow(newPartialDependence)] = "Other features"
-		mosaicplot(newPartialDependence, color = sort(heat.colors(newNbFeatures + 1), decreasing = FALSE), 
+		mosaicplot(t(newPartialDependence), color = sort(heat.colors(newNbFeatures + 1), decreasing = FALSE), 
 		main = "Variables interactions over observations", ylab = "Most important variables at 2nd order", 
 		xlab = "Most important variables at 1rst order", las = ifelse(maxChar > 10, 2,1), border = border)
 	}
 	else
 	{
-		mosaicplot(object$partialDependence[1:newNbFeatures,1:newNbFeatures], color = sort(heat.colors(newNbFeatures), decreasing = FALSE), 
+		mosaicplot(t(object$partialDependence[1:newNbFeatures,1:newNbFeatures]), color = sort(heat.colors(newNbFeatures), decreasing = FALSE), 
 		las = ifelse(maxChar > 10, 2, 1), main = "Variables interactions over observations", ylab = "Most important variables at 2nd order", xlab = "Most important variables at 1rst order", border = border)
 	}	
 	dev.new()
@@ -2417,7 +2632,7 @@ plot.importance <- function(x, nGlobalFeatures = 30, nLocalFeatures = 5, Xtest =
 	{
 		dev.new()
 		par(las=1)
-	    par(mar = c(5,maxChar + 1,4,2))
+	    par(mar = c(5, maxChar + 1,4,2))
 		nbFeatures3 = min(nbFeatures2, nrow(object$localVariableImportance$classVariableImportance))
 		mosaicplot(t(object$localVariableImportance$classVariableImportance[1:nbFeatures3,]), color = sort(heat.colors(nbFeatures3), 
 			decreasing = FALSE), main = "Variable importance over labels", border = border)
@@ -2460,12 +2675,12 @@ plot.importance <- function(x, nGlobalFeatures = 30, nLocalFeatures = 5, Xtest =
 			plot(gg + labs(x ="", y = "Response", title = "Dependence on most important predictors"))
 		}
 	}	
-	if (is.null(Xtest))	{	stop("partial dependence between response and predictor can not be computed without test data") }
+	if (is.null(Xtest))	{	stop("partial dependence between response and predictor can not be computed without data") }
 	else
 	{
 		endCondition = 0
 		dev.new()
-		pD <- partialDependenceOverResponses(Xtest, object, whichFeature = whichFeature, whichOrder = whichOrder, outliersFilter = outliersFilter)
+		pD <- partialDependenceOverResponses(Xtest, object, whichFeature = whichFeature, whichOrder = whichOrder, outliersFilter = outliersFilter,...)
 		#if (.Platform$OS.type == "windows") { arrangeWindows("vertical", preserve = FALSE) }
 		idxMostimportant = rmNA(match(names(object$variableImportanceOverInteractions), colnames(Xtest)))[1:nbFeatures2]
 		mostimportantFeatures = colnames(Xtest)[idxMostimportant]
@@ -2478,8 +2693,7 @@ plot.importance <- function(x, nGlobalFeatures = 30, nLocalFeatures = 5, Xtest =
 				whichFeature = as.numeric(ANSWER)
 				if (whichFeature %in% idxMostimportant)
 				{	
-					pD <- partialDependenceOverResponses(Xtest, object, whichFeature = whichFeature , whichOrder = whichOrder, 
-					outliersFilter = outliersFilter)	
+					pD <- partialDependenceOverResponses(Xtest, object, whichFeature = whichFeature, whichOrder = whichOrder, outliersFilter = outliersFilter,...)	
 				}
 				else
 				{   stop("Please provide column index among most important. Partial Dependence can not be computed.") }				
@@ -2629,22 +2843,24 @@ plotTree <- function(treeStruct, rowNum = 1, height.increment = 1, maxDepth = 10
 	}
 }
 
-fillNA2.randomUniformForest <- function(X, Y = NULL, ntree = 100, mtry = 1, nodesize = 10, NAgrep = "", threads = "auto")
+fillNA2.randomUniformForest <- function(X, Y = NULL, ntree = 100, mtry = 1, nodesize = 10, 
+categoricalvariablesidx = NULL, NAgrep = "", maxClasses = floor(0.01*min(3000, nrow(X))+2), threads = "auto")
 {	
     i = NULL 
 	if (ntree > 100 & nodesize == 1)
 	{ 
-		cat("For nodesize = 1, ntree cannot currently set higher to 100. Resetting to default value.\n")
+		cat("For nodesize = 1, ntree cannot currently set higher than 100. Resetting to default value.\n")
 		ntree = 100
 	}	
 	n <- nrow(X)
 	X <- fillVariablesNames(X)	
 	if (!is.null(Y)) { trueY = Y }
+	limitSize = if (n > 2000) { 50 } else { max(nodesize, 10) } 
 	if (!is.matrix(X))
 	{	
 		trueX = X
 		flag = TRUE
-		X.factors <- which.is.factor(X)
+		X.factors <- which.is.factor(X, maxClasses = maxClasses)
 		X <- NAfactor2matrix(X, toGrep = NAgrep)
 	}
 	else
@@ -2653,11 +2869,11 @@ fillNA2.randomUniformForest <- function(X, Y = NULL, ntree = 100, mtry = 1, node
 		X.factors = rep(0,ncol(X))
 	}	
 	NAIdx = which(is.na(X), arr.ind = TRUE)	
-	if (sum(NAIdx) == 0) { stop("No missing values in data.") }	
+	if (dim(NAIdx)[1] == 0) { stop("No missing values in data. Please use 'NAgrep' option to specify missing values.\n Function checks for NA in data and for the string given by 'NAgrep'.") }	
 	processedFeatures = unique(NAIdx[,2])	
 	nFeatures = length(processedFeatures)	
 	idx <- lapply(processedFeatures, function(Z) NAIdx[which(NAIdx[,2] == Z),1]) 
-	validIdx <- sapply(idx, function(Z) (length(Z) > nodesize))
+	validIdx <- sapply(idx, function(Z) (length(Z) >  limitSize))
 	processedFeatures <- processedFeatures[which(validIdx == TRUE)]
 	nFeatures = length(processedFeatures)
 	invalidIdx <- which(validIdx == FALSE)
@@ -2679,73 +2895,74 @@ fillNA2.randomUniformForest <- function(X, Y = NULL, ntree = 100, mtry = 1, node
 			if (threads == "auto")
 			{	
 				if (max_threads == 2) { threads = min(max_threads, nFeatures) }
-				else {	threads  = max(1, max_threads)   }
+				else {	threads = max(1, max_threads)  }
 			}
 			else
 			{
 				if (max_threads < threads) 
-				{	cat("Warning : number of threads indicated by user was higher than logical threads in this computer.\n") }
+				{	cat("Warning : number of threads is higher than logical threads in this computer.\n") }
 			}			
-			threads =  min(nFeatures, max_threads)
+			threads = min(nFeatures, max_threads)
 			#require(doParallel)			
 			Cl <- makePSOCKcluster(threads, type = "SOCK")
 			registerDoParallel(Cl)		
-			chunkSize  <-  ceiling(nFeatures/getDoParWorkers())
+			chunkSize <- ceiling(nFeatures/getDoParWorkers())
 			smpopts  <- list(chunkSize = chunkSize)
 		}				
-		export = c("randomUniformForest.default", "rUniformForest.big", "randomUniformForestCore.big", "randomUniformForestCore", 		"predict.randomUniformForest", "rUniformForestPredict", "uniformDecisionTree", "CheckSameValuesInAllAttributes", "CheckSameValuesInLabels", "fullNode", "genericNode", "leafNode", "filter.object", "filter.forest", 
-		"randomUniformForestCore.predict", "onlineClassify", "overSampling", "predictDecisionTree", "options.filter", "majorityClass", "randomCombination", "randomWhichMax", "vector2matrix", "which.is.na", "which.is.factor", "factor2vector", "outputPerturbationSampling", "rmNA", "count.factor", "find.idx", "genericOutput", "fillVariablesNames", "is.wholenumber", "rm.tempdir", "setManyDatasets", "onlineCombineRUF", "mergeLists", "classifyMatrixCPP", "L2DistCPP", "checkUniqueObsCPP", "crossEntropyCPP", "giniCPP", "L2InformationGainCPP", "entropyInformationGainCPP", "runifMatrixCPP")
+		export = c("randomUniformForest.default", "rUniformForest.big", "randomUniformForestCore.big", "randomUniformForestCore", "predict.randomUniformForest", "rUniformForestPredict", "uniformDecisionTree", "CheckSameValuesInAllAttributes", "CheckSameValuesInLabels", "fullNode", "genericNode", "leafNode", "filter.object", "filter.forest", "randomUniformForestCore.predict", "onlineClassify", "overSampling", "predictDecisionTree", "options.filter", "majorityClass", "randomCombination", "randomWhichMax", "vector2matrix", "which.is.na", "which.is.factor", "factor2vector", "outputPerturbationSampling", "rmNA", "count.factor", "find.idx", "genericOutput", "fillVariablesNames", "is.wholenumber", "rm.tempdir", "setManyDatasets", "onlineCombineRUF", "mergeLists", "classifyMatrixCPP", "L2DistCPP", "checkUniqueObsCPP", "crossEntropyCPP", "giniCPP", "L2InformationGainCPP", "entropyInformationGainCPP", "runifMatrixCPP", "NAfactor2matrix", "factor2matrix", "as.true.matrix")
 		if (nrow(X) < 2001)
 		{
-			newX <- foreach( i= 1:nFeatures, .options.smp = smpopts, .inorder = FALSE, .combine = cbind, .multicombine = TRUE, 
-			.export = export) %dopar%
+			newX <- foreach( i= 1:nFeatures, .options.smp = smpopts, .inorder = FALSE, .combine = cbind, 
+			.multicombine = TRUE, .export = export) %dopar%
 			{
 				if (X.factors[processedFeatures[i]] == 1)
 				{
-					rufObject <- randomUniformForest.default(X[-idx[[i]],-processedFeatures[i]], Y = as.factor(X[-idx[[i]], 
-						processedFeatures[i]]), OOB = FALSE, importance = FALSE, ntree = ntree, mtry = mtry, nodesize = nodesize, 
-							threads = 1)
+					rufObject <- randomUniformForest.default(X[-idx[[i]],-processedFeatures[i]], 
+					Y = as.factor(X[-idx[[i]], processedFeatures[i]]), OOB = FALSE, importance = FALSE, ntree = ntree, mtry = mtry, nodesize = nodesize, threads = 1, categoricalvariablesidx =  categoricalvariablesidx)
 							
 					X[idx[[i]], processedFeatures[i]] <- as.numeric(as.vector(predict.randomUniformForest(rufObject, 
 						X[idx[[i]], -processedFeatures[i]])))
 				}
 				else
 				{
-					rufObject <- randomUniformForest.default(X[-idx[[i]],-processedFeatures[i]], Y = X[-idx[[i]], processedFeatures[i]], 
-						OOB = FALSE, importance = FALSE, ntree = ntree, mtry = mtry, nodesize = nodesize, threads = 1)
+					rufObject <- randomUniformForest.default(X[-idx[[i]],-processedFeatures[i]], Y = X[-idx[[i]], processedFeatures[i]], OOB = FALSE, importance = FALSE, ntree = ntree, mtry = mtry, 
+					nodesize = nodesize, threads = 1, categoricalvariablesidx =  categoricalvariablesidx)
 						
-					X[idx[[i]], processedFeatures[i]] <- predict.randomUniformForest(rufObject, X[idx[[i]], -processedFeatures[i]])	
+					X[idx[[i]], processedFeatures[i]] <- predict.randomUniformForest(rufObject, 
+					X[idx[[i]], -processedFeatures[i]])	
 				}							
-				if (mean(is.wholenumber(rmNA(X[-idx[[i]], processedFeatures[i]]))) == 1) {  round(X[,processedFeatures[i]]) }
-				else {  X[,processedFeatures[i]]  }	
+				if (mean(is.wholenumber(rmNA(X[-idx[[i]], processedFeatures[i]]))) == 1) 
+				{  round(X[,processedFeatures[i]]) }
+				else 
+				{  X[,processedFeatures[i]]  }	
 			}			
 			X[,processedFeatures] = newX
 			stopCluster(Cl)				
 		}
 		else
 		{
-			newX <- foreach( i = 1:nFeatures, .options.smp = smpopts, .inorder = FALSE, .combine = cbind, .multicombine = TRUE, 
-			.export = export) %dopar%
+			newX <- foreach(i = 1:nFeatures, .options.smp = smpopts, .inorder = FALSE, .combine = cbind, .multicombine = TRUE, .export = export) %dopar%
 			{
 				if (X.factors[processedFeatures[i]] == 1)
 				{
 					rufObject <- rUniformForest.big(X[-idx[[i]],-processedFeatures[i]], Y = as.factor(X[-idx[[i]], 
-						processedFeatures[i]]), nforest = floor(nrow(X)/1000), replacement = TRUE, randomCut = TRUE, OOB = FALSE, 
-						importance = FALSE, ntree = ntree, mtry = mtry, nodesize = nodesize, threads = 1)
+						processedFeatures[i]]), nforest = max(1, floor(nrow(X[-idx[[i]],])/2000)), replacement = TRUE, randomCut = TRUE, OOB = FALSE, importance = FALSE, ntree = ntree, mtry = mtry, 
+						nodesize = nodesize, threads = 1, categoricalvariablesidx =  categoricalvariablesidx)
 							
 					X[idx[[i]], processedFeatures[i]] <- as.numeric(as.vector(predict.randomUniformForest(rufObject, 
 						X[idx[[i]], -processedFeatures[i]])))
 				}
 				else
 				{
-					rufObject <- rUniformForest.big(X[-idx[[i]],-processedFeatures[i]], Y = X[-idx[[i]], processedFeatures[i]], 
-						nforest = floor(nrow(X)/1000), replacement = TRUE, randomCut = TRUE, OOB = FALSE, importance = FALSE, ntree = ntree, mtry = mtry, nodesize = nodesize, threads = 1)
+					rufObject <- rUniformForest.big(X[-idx[[i]],-processedFeatures[i]], Y = X[-idx[[i]], processedFeatures[i]], nforest = max(1, floor(nrow(X[-idx[[i]],])/2000)), replacement = TRUE, randomCut = TRUE, OOB = FALSE, importance = FALSE, ntree = ntree, mtry = mtry, nodesize = nodesize, threads = 1, categoricalvariablesidx = categoricalvariablesidx)
 						
 					X[idx[[i]], processedFeatures[i]] <- predict.randomUniformForest(rufObject, X[idx[[i]], -processedFeatures[i]])	
 				}
 							
-				if (mean(is.wholenumber(rmNA(X[-idx[[i]], processedFeatures[i]]))) == 1) {  round(X[,processedFeatures[i]]) }
-				else {  X[,processedFeatures[i]]  }	
+				if (mean(is.wholenumber(rmNA(X[-idx[[i]], processedFeatures[i]]))) == 1) 
+				{  round(X[,processedFeatures[i]]) }
+				else 
+				{  X[,processedFeatures[i]]  }	
 			}
 			X[,processedFeatures] = newX
 			stopCluster(Cl)

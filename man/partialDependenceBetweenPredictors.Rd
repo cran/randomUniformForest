@@ -11,7 +11,8 @@
 partialDependenceBetweenPredictors(Xtest, importanceObject, features, 
 	whichOrder = c("first", "second", "all"),
 	perspective = FALSE,
-	outliersFilter = FALSE)
+	outliersFilter = FALSE,
+	maxClasses = 10)
 }
 
 \arguments{
@@ -28,22 +29,27 @@ partialDependenceBetweenPredictors(Xtest, importanceObject, features,
      at which order, partial dependence does it need to be computed ? 
 }
   \item{perspective}{
-     plot dependence in 3D ? 
+    if TRUE, plot dependence in 3D with animation or not. Note that model will lead to interpolation. If one needs extrapolation, 'outputperturbationsampling' option can help?
 }
   \item{outliersFilter}{
   filter outliers ?
+}
+ \item{maxClasses}{
+  for variables with discrete values that need to be treated as categorical for a better visualization and
+  that have more than 'maxClasses' unique values. Or for categorical variables that one knows to be categorical but
+  whose data are stored as a R matrix.
 }
 }
 
 \details{
   partial dependence shows how response values are evolving depending to two target features and knowing the distribution of all others features. Note that it is essential to first have a view on target features importance.
   Steps can be given as this :
-  1- get importance object (and plot it) that shows almost all objects that could explain the link between features and reponse.
-  2- compute dependence between the two target features and response values. Link that with step 1 to obtain precise effects on response feature.
+  1- get importance object (and plot it) that shows almost all objects that could explain the link between features and response.
+  2- compute dependence between two target features and response values. Link this point with step 1 to obtain precise effects on response feature.
 }
 
 \value{
- A matrix containing values of the two features and values of expected conditional response, for regression. For classification, responses column is whether or not the values of the two features share the same class. partialDependenceBetweenPredictors() function also returns a set of figures representing how the dependency between the two features is affecting classes of the problem (or responses values in case of regression). It also retruns a measure of dependence between the two predictors at first (one of the two feature is supposed to be the most important one in the data) and second order (one of the two feature is supposed to be the second most important one). 
+ A matrix containing values of the two features and values of expected conditional response, for regression. For classification, responses column is whether or not the values of the two features share the same class. partialDependenceBetweenPredictors() function also returns a set of figures representing how the dependency between the two features is affecting classes of the problem (or responses values in case of regression). It also returns a measure of dependence between the two predictors at first (one of the two feature is supposed to be the most important one in the data) and second order (one of the two features is supposed to be the second most important one). 
 }
 
 \note{
@@ -133,13 +139,13 @@ There is currently not a generic way (at least, I did not find it) to automatica
 
 ## compute and plot partial dependence between "Age" and "Cement" on train data, 
 ## without 3D representation and with filter upon outliers
-# pDbetweenPredictors.concrete.cementAndwater <- 
+# pDbetweenPredictors.concrete.cementAndAge <- 
 # partialDependenceBetweenPredictors(concrete.data.train,
 # concrete.ruf.importance, c("Age", "Cement"), whichOrder = "all", outliersFilter = TRUE)
 
 ## compute and plot partial dependence between "Age" and "Cement" on train data, 
 ## with 3D representation (slower)
-# pDbetweenPredictors.concrete.cementAndwater <- 
+# pDbetweenPredictors.concrete.cementAndAge <- 
 # partialDependenceBetweenPredictors(concrete.data.train,
 # concrete.ruf.importance, c("Age", "Cement"), whichOrder = "all", perspective = TRUE)
 }

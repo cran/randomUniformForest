@@ -24,8 +24,7 @@ CheckSameValuesInLabels <- function(Y, n, m, nodeMinSize)
 {
 	flagZeros = TRUE
 	if (n > nodeMinSize)
-	{	if (sum(Y)/n !=  Y[1])	{  flagZeros = FALSE }	}
-	
+	{	if (sum(Y) !=  n*Y[1])	{  flagZeros = FALSE }	}	
 	return(flagZeros)
 }
 
@@ -66,11 +65,9 @@ options.filter <- function(X, Y, nodeMinSize, o.bootstrap = FALSE, o.subagging =
 			minLengthClasses =  which.min(classesObject)
 			classes = as.numeric(names(classesObject))
 			sampleSize= classesObject[minLengthClasses]
-			classesSample = NULL
-			
+			classesSample = NULL			
 			for (i in 1:length(classes))
-			{ 	classesSample = c(classesSample, sample(which(Y == classes[i]), sampleSize)) 	}
-			
+			{ 	classesSample = c(classesSample, sample(which(Y == classes[i]), sampleSize)) 	}			
 			follow.idx = sort(classesSample)
 			n = length(follow.idx)
 		}
@@ -79,15 +76,17 @@ options.filter <- function(X, Y, nodeMinSize, o.bootstrap = FALSE, o.subagging =
 	{
 		if (max(o.treeRebalancedSampling) < 1)
 		{	o.treeRebalancedSampling = round(o.treeRebalancedSampling*n,0) }
-		
+		if (o.subagging != 1) { stop("rebalanced sampling is not currently compatible with sub-sampling")  }
 		classesObject = table(Y)
 		minLengthClasses =  which.min(classesObject)
 		classes = as.numeric(names(classesObject))
 		classesSample = NULL		
-		bootstrapFlag = FALSE
-		if (min(o.treeRebalancedSampling) > classesObject[minLengthClasses]) {	bootstrapFlag = TRUE }		
 		for (i in 1:length(classes))
-		{ 	classesSample = c(classesSample, sample(which(Y == classes[i]), o.treeRebalancedSampling[i], replace = bootstrapFlag)) 	}		
+		{ 	
+			classesSampleSize = which(Y == classes[i])
+			classesSample = c(classesSample, sample(classesSampleSize, o.treeRebalancedSampling[i], 
+			replace = if (classesSampleSize >  o.treeRebalancedSampling[i]) { FALSE } else { TRUE })) 	
+		}	
 		follow.idx = sort(classesSample)
 		n = length(follow.idx)
 	}	
@@ -172,8 +171,8 @@ outputPerturbation = FALSE)
 		if (rf.features == 1) { randomFeature = TRUE }				
 		if (outputPerturbation) 
 		{  
-			Y <- outputPerturbationSampling(Y, whichClass = targetClass, sampleSize = max(min(treeOverSampling, 0.5), 0.05), 
-			regression = regression)
+			minValue = if (treeOverSampling == 0) { 0.05 } else { 1/(length(Y)-1) }
+			Y <- outputPerturbationSampling(Y, whichClass = targetClass, sampleSize = max(min(treeOverSampling, 1), minValue), regression = regression)
 			treeOverSampling = 0 
 		}
 		object.filtered <- options.filter(X, Y, nodeMinSize, o.bootstrap = bootstrap, o.subagging = subagging, o.treeOverSampling = treeOverSampling, o.targetClass = targetClass, o.OOB = OOB, o.treeRebalancedSampling = treeRebalancedSampling)			
@@ -183,7 +182,8 @@ outputPerturbation = FALSE)
 		init.X = object.filtered$X
 		n = object.filtered$n
 		p = object.filtered$p
-		OOBIdx = object.filtered$OOBIdx		
+		OOBIdx = object.filtered$OOBIdx
+		if (nodeMinSize >= n) { stop("minimal number of observations (nodesize) can not be greater than sample size") }
 		m = rf.features
 		if (x.bagging) { m = min(p, rf.features) }		
 		mCoeff = m/p
@@ -225,7 +225,7 @@ outputPerturbation = FALSE)
 			else
 			{ thresholdLimit = 0 }
 		}
-		nrowTree = max(256,floor(n/4))
+		nrowTree = floor(log(n)/log(2))
 		nodes.nb = averageLeafWeight = vector(length = nrowTree)
 		Tree = new.Tree = matrix(data = Inf, ncol = 7, nrow = nrowTree)
 		rmVarList = list()
@@ -243,19 +243,24 @@ outputPerturbation = FALSE)
 	allDim = 1:p
 	flagOptimization_1 = 0
 	if (x.bagging)  { flagOptimization_1 = 1 }	
-	lowCorr <- if (sample(0:1,1) == 1) { TRUE } else { FALSE }
+	if (randomFeature | outputPerturbation | x.bagging) { lowCorr <- FALSE }
+	else
+	{
+	   lowCorr <- if (sample(0:1,1) == 1) { TRUE } else { FALSE }
+	}
 	while (endCondition)
 	{		
+		set.seed(sample(100000,1))
 		{
-			n = length(dataSpaceList[[k]])			
+			n = length(dataSpaceList[[k]])
 			nodeMinSizeCandidate = max(floor(n/2),1)
-			if ( randomNodesize & (k > nodeMinSizeCandidate) ) { nodeMinSize <- sample(nodeMinSizeCandidate,1)	}			
+			if ( randomNodesize & (k > nodeMinSizeCandidate) ) { nodeMinSize <- sample(nodeMinSizeCandidate,1)	}
 			Y <- init.Y[dataSpaceList[[k]]] 
-			X <- init.X[dataSpaceList[[k]], allDim, drop = FALSE]
+			X <- init.X[dataSpaceList[[k]], allDim, drop = FALSE] 
 		}		
 		pureNode = FALSE
 		flag = 0		
-		if  ( (k >= minNodes) & (CheckSameValuesInAllAttributes(X, n, p, nodeMinSize) | (k >= (2^treeDepth-1)) | (k >= maxNodes)) ) 
+		if ( (k >= minNodes) & (CheckSameValuesInAllAttributes(X, n, p, nodeMinSize) | (k >= (2^treeDepth - 1)) |  (k >= maxNodes)) )
 		{	
 			if (n != 0)
 			{  
@@ -268,19 +273,18 @@ outputPerturbation = FALSE)
 			{	
 				previous.k <- which(Tree == k, arr.ind = TRUE)[1] 
 				Y <- init.Y[dataSpaceList[[previous.k]]]
-				X <- matrix(init.X[dataSpaceList[[previous.k]], , drop = FALSE], length(previous.k), p)							
+				X <- matrix(init.X[dataSpaceList[[previous.k]], , drop = FALSE], length(previous.k), p)				
 				Leaf <- leafNode(X, Y, k, n, nClasses, classes, l.classwt = treeClasswt, l.regression = regression)				
 				if (regression)  { Tree[k,] <- c(genericNode(k, -1), Leaf) }
 				else { Tree[k,] <- c(genericNode(k, -1), Leaf$Class) }
 				nodes.nb[k] = length(Y)
 			}
 			updated.nodes = updated.nodes + 2			
-			if (!is.null(treeClasswt) & (!regression)) 	
-			{  averageLeafWeight[k] <- sum(treeClasswt*Leaf$nb)/nodes.nb[k]	}
+			if (!is.null(treeClasswt) & (!regression)) 	{  averageLeafWeight[k] <- sum(treeClasswt*Leaf$nb)/nodes.nb[k]	}
 		}
 		else
 		{
-			if ((k >= minNodes) & CheckSameValuesInLabels(Y, n, p, nodeMinSize) )  
+			if ((k >= minNodes) & CheckSameValuesInLabels(Y, n, p, nodeMinSize) ) 
 			{ 
 				Tree[k,] <- c( genericNode(k, -1), leafNode(X, Y, k, n, nClasses, classes, l.classwt = treeClasswt, 
 					which.values = "output", l.regression = regression) )				
@@ -289,7 +293,7 @@ outputPerturbation = FALSE)
 				if (!is.null(treeClasswt) & (!regression)) 	{  	averageLeafWeight[k] = treeClasswt[Y[1]]	}
 			}
 			else
-			{				
+			{
 				if ( rmVarList[[k]][1] != 0 )	
 				{	
 					featuresIdx = allDim[-rmVarList[[k]]]  
@@ -299,28 +303,28 @@ outputPerturbation = FALSE)
 				{ 	
 					featuresIdx = allDim
 					m = rf.features	
-				}						
-				candidateVariables <- sample(featuresIdx, m, replace = !x.bagging)				
+				}
+				candidateVariables <- sample(featuresIdx, m, replace = !x.bagging)
 				if (!flagOptimization_1 & !randomSubspace & lowCorr)
 				{
-					randomLimit <- if (regression)  { sample(3:sample(3:31,1),1) }  else { 3 }
-								
+					
+					randomLimit <- if (regression)  { sample(3:sample(3:7,1),1) }  else { 3 }								
 					if ( (k <= randomLimit) & (m >= 2) )
-					{   U.coeff = runif(1); candidateVariables = sample(featuresIdx, max(2,floor(U.coeff*p)), replace = TRUE)	}
+					{   U.coeff = runif(1); candidateVariables = sample(featuresIdx, max(2,floor(U.coeff*2*p)), replace = TRUE)	}
 					else
 					{ 	flagOptimization_1 = 1 }					
 				}				
 				if (randomSubspace)
 				{	
-					U.coeff <- 2*runif(1) 
+					U.coeff <- 2*runif(1)
 					candidateVariables <- sample(featuresIdx, max(2,floor(U.coeff*p)), replace = TRUE)	
-				}										 
+				}
 				candidateVariables <- sortCPP(candidateVariables)
-				colXTmp <- length(candidateVariables)				
+				colXTmp <- length(candidateVariables)
 				catVar = 0 
 				if (!is.null(treeCatVariables))
 				{
-					catVar = catVarRelativeIdx = NULL 
+					catVar = NULL 
 					for (i in seq_along(treeCatVariables)) 
 					{ 
 						matchCatVar <- which(candidateVariables == treeCatVariables[i])
@@ -328,29 +332,26 @@ outputPerturbation = FALSE)
 					}					
 					if (!is.null(catVar)) 
 					{ 
-						catVarRelativeIdx = catVar
 						catVar <- sortCPP(unique(candidateVariables[catVar]))												
-						coin = 1
-						maxNbCat <- length(unique(X[,sample(catVar,1)]))
-						 if (coin == sample(0:maxNbCat,1))						
-						{	
-							for (j in 1:length(catVar))
+						for (j in 1:length(catVar))
+						{
+							if (length(unique(X[,catVar[j]])) > 1)
 							{
-								dummy <- sample(X[,catVar[j]], 2)
-								sampleCatVar = (1:n)[sample(n, sample(n,1))]								
-								X[sampleCatVar, catVar[j]] = dummy[1]
-								X[-sampleCatVar, catVar[j]] = dummy[2]
+								dummy <- sample(unique(X[,catVar[j]]), 2)
+								dummyIdx = which(X[,catVar[j]] == dummy[1])
+								X[dummyIdx, catVar[j]] = dummy[1]
+								X[-dummyIdx, catVar[j]] = dummy[2]
 							}
 						}
 					}
 					else
 					{ catVar = 0 }
-				}								
+				}
 				XTmp <- X[ ,candidateVariables, drop = FALSE]
 				variablesLength <- checkUniqueObsCPP(XTmp)
 				idxVariableLength <- which(variablesLength > 1)
 				uniqueObs <- which(variablesLength == 1)
-				lengthUniqueObs <- length(uniqueObs)							
+				lengthUniqueObs <- length(uniqueObs)
 				if (!regression)
 				{
 					if (nClasses == 2) 
@@ -375,8 +376,8 @@ outputPerturbation = FALSE)
 					}
 				}
 				else
-				{  YGain = classes = 0 }								
-				if (lengthUniqueObs > 0) { 	rmVar <- sortCPP(unique(candidateVariables[uniqueObs])) } 				 				
+				{  YGain =  sample(c(0,0.01),1);  classes = 0 }  								
+				if (lengthUniqueObs > 0) { 	rmVar <- sortCPP(unique(candidateVariables[uniqueObs])) }				 				
 				nCurrentFeatures <- length(variablesLength)								
 				if (!is.na(idxVariableLength[1])) 				
 				{		
@@ -386,8 +387,7 @@ outputPerturbation = FALSE)
 					{
 						XTmp <- XTmp[ ,idxVariableLength, drop = FALSE]
 						nCurrentFeatures = 1
-						if (!is.null(treeCatVariables) & (catVar[1] == candidateVariables[1]) ) {  thresholds <- sample(XTmp,1)  }
-						else { 	thresholds <- runif(1, min(XTmp), max(XTmp)) }								
+						thresholds <- runif(1, min(XTmp), max(XTmp))								
 						if (!randomFeature)							
 						{ 
 							if (regression) 
@@ -408,15 +408,8 @@ outputPerturbation = FALSE)
 					else 
 					{
 						XTmp <- XTmp[,idxVariableLength, drop = FALSE]						
-						p.XTmp = nCurrentFeatures = nIdxVariableLength
-						thresholds <- runifMatrixCPP(XTmp)					   
-						if (!is.null(treeCatVariables) & (catVar[1] > 0) )
-						{	
-							newCatVar <- find.idx(catVar, candidateVariables, sorting = FALSE)					
-							XTmp <- XTmp[ ,newCatVar, drop = FALSE] 
-							thresholds.tmp <- apply( XTmp, 2, function(Z){ sample(Z,1) } )	
-							thresholds[newCatVar] = thresholds.tmp
-						}																													
+						p.XTmp = nCurrentFeatures = nIdxVariableLength																		
+						thresholds <- runifMatrixCPP(XTmp)
 						if (!randomFeature)
 						{
 							if (regression)  
@@ -446,34 +439,34 @@ outputPerturbation = FALSE)
 				}				
 				if (randomFeature & !is.na(idxVariableLength[1]))
 				{
-					idxBestFeature <- sample(seq_along(thresholds), 1)					
+				    idxBestFeature <-  if (length(thresholds) > 1) { sample(seq_along(thresholds), 1) } else  { 1 }
 					if (regression)
 					{	
 						if (gainFunction == "L2") 
 						{ 	
-							iGain[idxBestFeature] <- YGain - L2InformationGainCPP(Y, XTmp[,idxBestFeature, drop = FALSE], 
-							thresholds[idxBestFeature])
+							iGain[idxBestFeature] <- YGain - 
+							L2InformationGainCPP(Y, XTmp[,idxBestFeature, drop = FALSE], thresholds[idxBestFeature])
 						}
 						else
 						{
-							iGain[idxBestFeature] <- YGain - L1InformationGainCPP(Y, XTmp[,idxBestFeature, drop = FALSE], 
-							thresholds[idxBestFeature])
+							iGain[idxBestFeature] <- YGain - 
+							L1InformationGainCPP(Y, XTmp[,idxBestFeature, drop = FALSE], thresholds[idxBestFeature])
 						}
 					}
 					else  
 					{  
 						if (is.null(treeClasswt)) { newTreeClasswt = rep(0, nClasses) }
-						else  { newTreeClasswt = treeClasswt }
-								
+						else  { newTreeClasswt = treeClasswt }								
 						flagIGFunction = 1
-						if (gainFunction != "entropy") { flagIGFunction = -1 }
-								
-						iGain[idxBestFeature] <- YGain - entropyInformationGainCPP(Y, XTmp[, idxBestFeature, drop = FALSE], 
-						thresholds[idxBestFeature], classes, nClasses, newTreeClasswt, flagIGFunction)
+						if (gainFunction != "entropy") { flagIGFunction = -1 }								
+						iGain[idxBestFeature] <- YGain - entropyInformationGainCPP(Y, XTmp[, idxBestFeature, drop = FALSE], thresholds[idxBestFeature], classes, nClasses, newTreeClasswt, flagIGFunction)
 					}
 				}
 				else
-				{	idxBestFeature <- randomWhichMax(iGain)  }					
+				{	
+					if (randomFeature) { idxBestFeature <- sample(candidateVariables,1) }
+					else { idxBestFeature <- randomWhichMax(iGain) }
+				}					
 				iGain <- abs(iGain)
 				if (regression & !is.null(treeDepthControl)) {  thresholdLimit = L2Limit/(limitCoeff*2*k)  }								
 				if  (max(iGain) <= thresholdLimit)
@@ -485,7 +478,7 @@ outputPerturbation = FALSE)
 					nodes.nb[k] = n
 					pureNode = TRUE
 				}
-			}				
+			}
 			if (pureNode)
 			{	updated.nodes = updated.nodes + 2; iGain = iGain.tmp	}
 			else
@@ -495,20 +488,21 @@ outputPerturbation = FALSE)
 				if (lengthUniqueObs > 0) {  rmVarList[[belowK]] = rmVarList[[aboveK]] = rmVar }
 				else { 	rmVarList[[belowK]] = rmVarList[[aboveK]] = 0	}								
 				bestFeature = candidateVariables[idxBestFeature]
-				bestThreshold = thresholds[idxBestFeature]				
+				bestThreshold = thresholds[idxBestFeature]
 				XObsOfBestFeature <- X[,bestFeature]				
 				subIdx = idxLow = which(XObsOfBestFeature <= bestThreshold)					
 				nLowIdx = length(idxLow)  
 				nHighIdx = n - nLowIdx				
 				Tree[k,] <- fullNode(k, belowK, aboveK, bestFeature, bestThreshold)				
-				nodes.nb[k] = n
+				nodes.nb[k] = n																	
 				if ( (nLowIdx == n) | (nLowIdx == 0) )
 				{ dataSpaceList[[belowK]] = 0L}
 				else 
 				{						
 					dataSpaceList[[belowK]] = dataSpaceList[[k]][subIdx]
 					flag = 1					
-					if ( sum(XObsOfBestFeature[idxLow])/nLowIdx == XObsOfBestFeature[idxLow][1] )  {  rmVarList[[belowK]] = bestFeature }
+					if ( sum(XObsOfBestFeature[idxLow]) == (nLowIdx*XObsOfBestFeature[idxLow][1]) )  
+					{  rmVarList[[belowK]] = bestFeature }
 					allNodes = allNodes + 1L
 				}							
 				if ( (nHighIdx == 0) | (nHighIdx == n) )  
@@ -516,7 +510,8 @@ outputPerturbation = FALSE)
 				else 
 				{	
 					dataSpaceList[[aboveK]] = (dataSpaceList[[k]][-subIdx])
-					if ( sum(XObsOfBestFeature[-idxLow])/nHighIdx  == XObsOfBestFeature[-idxLow][1]) {  rmVarList[[aboveK]] = bestFeature }
+					if ( sum(XObsOfBestFeature[-idxLow]) == (nHighIdx*XObsOfBestFeature[-idxLow][1])) 
+					{  rmVarList[[aboveK]] = bestFeature }
 					allNodes = allNodes + 1L
 				}
 			}
@@ -532,16 +527,18 @@ outputPerturbation = FALSE)
 			iGain = iGain.tmp = rep(0, rf.features)
 			prev.iGain = vector()
 			proba.Y = vector(length = nClasses)
-			k = endCondition = idxBestFeature =  allNodes = 1L
+			k = endCondition = idxBestFeature = allNodes = 1L			
+			# dataSpaceList = rmVarList = list()
 			rmVarList = list()
 			dataSpaceList = vector("list", floor(log(n.dup)/log(2)))
-			dataSpaceList = lapply(dataSpaceList, function(Z) 1:n.dup)
-			rmVarList[[1]] = updated.nodes = flagOptimization_1 = 0
+			dataSpaceList = lapply(dataSpaceList, function(Z) 1:n.dup)			
+			rmVarList[[1]] = updated.nodes = flagOptimization_1 = 00
 			dataSpaceList[[1]] = 1:n.dup			
 			Tree = new.Tree = matrix(data = Inf, ncol = 7, nrow = nrowTree)
 			nodes.nb = averageLeafWeight = vector(length = nrowTree)			
 			rmVar = NULL
 			allDim = 1:p
+			if (x.bagging)  { flagOptimization_1 = 1 }	
 			if (!regression) 
 			{ 
 				if (is.character(treeDepthControl)) {  thresholdLimit <- runif(1,0,0.01) }
@@ -577,7 +574,7 @@ outputPerturbation = FALSE)
 			Tree = rbind(Tree, new.Tree)
 			new.nodes.nb = vector(length = nrowTree); nodes.nb = c(nodes.nb,new.nodes.nb)
 		}
-	}	
+	}
 	Tree.size = which((Tree == Inf), arr.ind = TRUE)[1] - 1
 	Tree = Tree[1:Tree.size,]		
 	if (Tree.size == 1) {  Tree = matrix(Tree, nrow = 1) }
@@ -615,15 +612,24 @@ leafNode <- function(X, Y, k, n, nClasses, classes, which.values = "input", l.re
 {
 	if (which.values == "input")
 	{
-		if (l.regression) { return(sum(Y)/n) }
+		if (l.regression) 
+		{ 
+			if (n == 1) { return(Y) }
+			else  
+			{ 	return(sum(Y)/n) }		
+		}
 		else
 		{ 	
 			classNb = rep(0, nClasses)
-			for (i in 1:nClasses) { classNb[i] = sum(Y == classes[i]) }
-			
+			classNb[1] = sum(Y == classes[1])
+			if (nClasses == 2) { classNb[2] =  n - classNb[1] }
+			else
+			{
+				for (i in 2:nClasses) 
+				{ classNb[i] = sum(Y == classes[i]) }
+			}		
 			if (!is.null(l.classwt)) {	classProb = l.classwt*classNb	}
-			else  {  classProb = classNb  }
-	
+			else  {  classProb = classNb  }	
 			return (list(Class = randomWhichMax(classProb), nb = classNb))
 		}			
 	}

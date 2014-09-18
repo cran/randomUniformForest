@@ -14,7 +14,8 @@ partialDependenceOverResponses(Xtest, importanceObject,
 	whichOrder = c("first", "second", "all"), 
 	outliersFilter = FALSE, 
 	plotting = TRUE, 
-	followIdx = FALSE)
+	followIdx = FALSE, 
+	maxClasses = 10)
 }
 
 \arguments{
@@ -38,6 +39,11 @@ partialDependenceOverResponses(Xtest, importanceObject,
 }
 \item{followIdx}{
   not currently used.
+}
+\item{maxClasses}{
+  for variables with discrete values that need to be treated as categorical for a better visualization and
+  that have more than 'maxClasses' unique values. Or for categorical variables that one knows to be categorical but
+  whose data are stored as a R matrix.
 }
 }
 

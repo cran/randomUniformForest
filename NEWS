@@ -1,0 +1,41 @@
+Changes in 1.0.8 :
+
+1- Full support of categorical variables.
+They were formerly matched by the same function than continuous ones, leading to some troubles in Variable importance and a loss of accuracy.
+Now, categorical variables used their own engine, from modelling to variable importance and selection.
+In addition, one can now use discrete values as categorical, e.g., in order to know if one frequent value in a variable can affect the response.
+Note that accuracy might drop in contrast of the default case, for which algorithm considers all variables as continuous ones,
+
+2 - Partial dependence plots.
+better match of categorical variables and 3D representation
+
+3 - Quantile regression.
+Value of quantile was between 1 and 99 and not 0 and 1 as required.
+
+4 - Variable importance. 
+Bugs correction : when prediction Object was present, importance was not correctly computed, leading to wrong interactions between features.
+Interactions plot was also inverted (1rst order was 2nd).
+
+5 - Variable importance is now allowed with mtry = 1. As a consequence, one can assess variable importance using purely random forest.
+
+6 - outputperturbationSampling.
+It is now allowed to replace all original values of train responses by a random vector sampled from those values (mean and variance)
+using gaussian distribution.
+
+7 - Summary.
+random Uniform forests summary is now unified and one can also use model.stats( ) function to assess predictions vs responses.
+
+8 - Missing values.
+fillNA2.randomUniformForest( ) is now working with large files.
+
+9 - Prediction. 
+Prediction is now possible for only one observation.
+
+10- Rebalanced sampling.
+Sample of any size or class distribution is allowed with rebalancedsampling option.
+
+11 - Area Under Precision-Recall Curve is available using roc.curve( ) function.
+
+12 - rUniformForest.grow( ) function is now working with outputperturbationSampling enabled in first run before adding more trees.
+
+13 - Various bugs corrected.

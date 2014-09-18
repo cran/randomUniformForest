@@ -11,7 +11,7 @@
   Random Uniform Forests for Classification and Regression
 }
 \description{
-  Ensemble model, for classification and regression, based on a forest of of unpruned and randomized binary trees. Each tree is grown by sampling, with replacement, a set of variables at each node. Each cut-point is generated randomly, according to the Uniform law on the support of each candidate variable. Optimal random node is, then, choosen by maximizing information gain (classification) or minimizing 'L2' (or 'L1') distance (regression). Data are either bootstrapped or subsampled for each tree. Random Uniform Forests are aimed to lower correlation between trees, to offer more details about variable importance and selection and to allow native incremental learning.
+  Ensemble model, for classification and regression, based on a forest of unpruned and randomized binary trees. Each tree is grown by sampling, with replacement, a set of variables at each node. Each cut-point is generated randomly, according to the Uniform distribution on the support of each candidate variable. Optimal random node is, then, chosen by maximizing information gain (classification) or minimizing 'L2' (or 'L1') distance (regression). Data are either bootstrapped or sub-sampled for each tree. Random Uniform Forests are aimed to lower correlation between trees, to offer more details about variable importance and selection and to allow native incremental learning.
 }
 \usage{
 \method{randomUniformForest}{formula}(formula, data = NULL, \dots)
@@ -48,7 +48,7 @@
 	\dots)	
 	\method{print}{randomUniformForest}(x, \dots)
 	\method{summary}{randomUniformForest}(object, maxVar = 30, border = NA, \dots)
-	\method{plot}{randomUniformForest}(x, \dots)
+	\method{plot}{randomUniformForest}(x, threads = "auto", \dots)
 }
 
 %- maybe also 'usage' for other objects documented here.
@@ -63,7 +63,7 @@
 	    an object of class randomUniformForest.
 	}
 	\item{data}{
-	    in case of formula, a data frame, or matrix, containing the variables (including reponse) and their values.
+	    in case of formula, a data frame, or matrix, containing the variables (including response) and their values.
 	}
 	\item{X, formula}{
 	    a data frame, or matrix, of predictors, or a formula describing the model to be fitted. Note that, it is strongly recommended to avoid formula when using options or with large samples.
@@ -81,20 +81,20 @@
 	     number of trees to grow. Default value is 100. Do not set it too small.
 	}
 	\item{mtry}{
-	     number of variables randomly sampled with replacement as candidates at each split. Default value is floor(4/3*ncol(X)) unless 'bagging' or 'randomfeature' options are specified. One can also set mtry = "random". For regression, increasing 'mtry' value usually leads to better accuracy.
+	     number of variables randomly sampled with replacement as candidates at each split. Default value is floor(4/3*ncol(X)) unless 'bagging' or 'randomfeature' options are specified. One can also set mtry = "random". For regression, increasing 'mtry' value usually leads to better accuracy. Note that mtry = 1 will lead to a purely uniformly random forest. mtry has also an effect when assessing variable importance.
 	}
 	\item{nodesize}{
-	     minimal size of terminal nodes. Default value is 1 (for both classification and regression) and usually produce best results, as it reduces bias when trees are fully grown. Variance is increased, but that is exactly what random Uniform Forests need. For testing consistency in binary classification and large datasets, nodesize can be set to sqrt(n*log(n)).
+	     minimal size of terminal nodes. Default value is 1 (for both classification and regression) and usually produce best results, as it reduces bias when trees are fully grown. Variance is increased, but that is exactly what random Uniform Forests need. 
 	}
 	\item{maxnodes}{
 	 	  maximal nodes for each tree. Default value is 'Inf', growing trees to maximum size. Random number of nodes is allowed, setting option to "random". 
 	}
 	\item{depth}{
-	     depth of each tree. By default, Trees are fully grown. Maximum depth is floor(log(n)/log(2)) where n = nrow(X). Stumps are not allowed, hence smallest depth is 3.
+	     depth of each tree. By default, Trees are fully grown. Maximum depth is floor(log(n)/log(2)) where n = nrow(X). Stumps are not allowed, hence smallest depth is 3. Note that 'depth' has an effect when assessing variable importance.
 	}
 	\item{depthcontrol}{
 	    let algorithm controls depth by setting depthcontrol = "random", or set it lower than 16 for regression. 
-		Small values greatly increase speed while reducing (a little) accuracy. For classification, set it less or equal to 0.01 but value is more sensitive to accuracy. Useful for large data sets.
+		Small values greatly increase speed while reducing accuracy. For classification, set it less or equal to 0.01 but value is more sensitive to accuracy. Useful for large data sets.
 	}
 	\item{regression}{
 	     only needed if either classification or regression has to be set explicitly. Otherwise, model checks if 'Y' is a factor (classification), or not (regression) before computing task. If Y is not a factor and one wants to do classification, must be set to FALSE. 
@@ -106,16 +106,16 @@
 	     if replace is TRUE, then if OOB is TRUE, "Out-of-bag" evaluation is done, resulting in an estimate of generalization (and mean squared) error and bounds. OOB option has overhead on computing time, but it is one of the most useful option.
 	}
 	\item{BreimanBounds}{
-	    if TRUE, computes all theorical properties provided by Breiman (2001), since random uniform forests inherit of random forests properties. For classification, it gives the two bounds of prediction error, average correlation between trees, strength and standard deviation of strength. Breiman's bound (classification) acts as an upper bound; if not then overfitting can likely to happen (or classes are imbalanced, or there is not enough trees or train data) and changing 'mtry' (rebalancing classes, add more trees, data, ...) is one of the way to avoid it. Note that if Breiman's first bound do not act as an upper bound (to see it, compare it with OOB error) despite all options provided, then one has to consider the second bound which should be always an upper bound of prediction error. It could be loose but, if there are enough trees and data, will be strongly reduced using options. Note that for multiclass problems or large files, 'BreimanBounds' option require a lot of computing time. For regression, model returns an estimate of the forest theorical prediction error, its upper bound, mean prediction error of a tree, average correlation between trees residuals and expected squared bias. Breiman's bound acts, here, as an estimate of the expected prediction error, since it assumes that there is no bias in model, and not as an upper bound of test (mean squared) error, and gives ways on possible model improvements, e.g. if it is lower than OOB error, then, usually, there is room for more optimizations.
+	    if TRUE, computes all theoretical properties provided by Breiman (2001), since random uniform forests inherit of random forests properties. For classification, it gives the two bounds of prediction error, average correlation between trees, strength and standard deviation of strength. Breiman's bound (classification) acts as an upper bound; if not then overfitting is likely to happen (or classes are imbalanced, or there is not enough trees or train data) and changing 'mtry' (rebalancing classes, add more trees, data, ...) is one of the way to avoid it. Note that if Breiman's first bound does not act as an upper bound (to see it, compare it with OOB error) despite all options provided, then one has to consider the second bound which should be always an upper bound of prediction error. It could be loose but, if there are enough trees and data, will be strongly reduced using options. Note that for multi-class problems or large files, 'BreimanBounds' option requires a lot of computing time. For regression, model returns an estimate of the forest theoretical prediction error, its upper bound, mean prediction error of a tree, average correlation between trees residuals and expected squared bias. Breiman's bound acts, here, as an estimate of the expected prediction error, since it assumes that there is no bias in model, and not as an upper bound of test (mean squared) error. It also provides ways on possible model improvements, e.g. if it is lower than OOB error then, usually, there is room for more optimizations.
 	}
 	\item{subsamplerate}{
-	     value is the rate of subsampling (Bulhmann et Yu, 2002) for training sample. By default, 0.7 for regression (1, e.g. no subsampling in classification). If 'replace' is TRUE, 'subsamplerate' can be set to values greater than 1. For regression, if only accuracy is needed, setting 'replace' to FALSE and 'subsamplerate' to 1, may improve results in some cases but OOB evaluation (and Breiman's bounds) will be lost.
+	     value is the rate of sub-sampling (Bulhmann et Yu, 2002) for training sample. By default, 0.7 for regression (1, e.g. no sub-sampling in classification). If 'replace' is TRUE, 'subsamplerate' can be set to values greater than 1. For regression, if only accuracy is needed, setting 'replace' to FALSE and 'subsamplerate' to 1, may improve results in some cases but OOB evaluation (and Breiman's bounds) will be lost.
 	}
 	\item{importance}{
-	     should importance of predictors be assessed? By default, TRUE.
+	     should importance of predictors be assessed? By default, TRUE. 
 	}
 	\item{bagging}{
-	     if TRUE, "Bagging" (Breiman, 1996) of random uniform decision trees (unpruned trees whose variables are, usually, sampled with replacement and with cut-points choosen randomly using the Uniform law on the support of each candidate variable) is done. Useful to compare "Bagging of random uniform decision trees" and usual "Bagging of trees". For regression, can give sometimes better results than sampling, with replacement, variables.
+	     if TRUE, "Bagging" (Breiman, 1996) of random uniform decision trees (unpruned trees whose variables are, usually, sampled with replacement and with cut-points chosen randomly using the Uniform distribution on the support of each candidate variable) is done. Useful to compare "Bagging of random uniform decision trees" and usual "Bagging of trees". For regression, can give sometimes better results than sampling, with replacement, variables.
 	}
 	\item{unsupervised}{
 	    not yet implemented.
@@ -124,34 +124,34 @@
 	    not yet fully implemented.
 	}
 	\item{classwt}{
-	     for classification only. Priors of the classes. Need not add up to one. Useful for imbalanced classes. Note that if one wants to compute many forests and combine them, with 'classwt' enabled for only few of them, all others forests must have 'classwt' enabled, leading to classwt = rep(1, 'number of classes') for forests that one do not need to compute weights.
+	     for classification only. Prior of the classes. Need not add up to one. Useful for imbalanced classes. Note that if one wants to compute many forests and combine them, with 'classwt' enabled for only few of them, all others forests must have 'classwt' enabled, leading to classwt = rep(1, 'number of classes') for forests that one do not need to compute weights.
 	}
 	\item{oversampling}{
-	     for classification, a scalar betwen 1 and -1 for over or undersampling of minority or majority class. Must be used with 'targetclass'. For example, if set to -0.3, and 'targetclass' set to 1, then first class (assumed to be the majority class) will be undersampled by a proportion of 30 percent. if set to 0.5, and 'targetclass' set to 2, then second class (assumed to be the minority class) will be  oversampled by a proportion of 50 percent. In all cases, size of original matrix will not be modified, hence 'oversampling' option is always associated with undersampling. If one wants to force true oversampling, 'rebalanced sampling' is the alternative. For both classification and regression, 'oversampling' is the value that can be used to perturbate responses values (see 'outputperturbationsampling') and then must be set between 0.05 and 0.5. Let it to its default value if one wants to run 'outputperturbationsampling' automatically, especially if classification is done with 'oversampling' option.
+	     for classification, a scalar betwen 1 and -1 for over or under-sampling of minority or majority class. Must be used with 'targetclass'. For example, if set to -0.3, and 'targetclass' set to 1, then first class (assumed to be the majority class) will be undersampled by a proportion of 30 percent. if set to 0.5, and 'targetclass' set to 2, then second class (assumed to be the minority class) will be  oversampled by a proportion of 50 percent. In all cases, size of original matrix will not be modified, hence 'oversampling' option is always associated with undersampling. If one wants to force true oversampling, 'rebalanced sampling' is the alternative. For both classification and regression, 'oversampling' is the value that can be used to perturb responses values (see 'outputperturbationsampling') and then must be set between 0.05 and 1. Let it to its default value if one wants to run 'outputperturbationsampling' automatically, especially if classification is done with 'oversampling' option.
 	}
 	\item{targetclass}{
 	     for classification only. Which class (given by its subscript, e.g. 1 for first class) should be targeted by 'oversampling' or 'outputperturbationsampling' option ? 
 	}
 	\item{outputperturbationsampling}{
-	     if TRUE, let model applies a random perturbation over responses vector. For classification, 'targetclass' must be set to the class (given by its position) that will be perturbated. By default 5 percent of the values will be perturbated, but more is allowed (up to 50 percent) using 'oversampling' option. 'outputperturbationsampling' is aimed to reduce correlation between trees (residuals) and can be monitored using Breiman's bounds. It also works better with many trees and may help to protect from overfitting.
+	     if TRUE, let model applies a random perturbation over responses vector. For classification, 'targetclass' must be set to the class (given by its position) that will be perturbed. By default 5 percent of the values will be perturbed, but more is allowed (up to 100 percent) using 'oversampling' option. 'outputperturbationsampling' is aimed to reduce correlation between trees (residuals) and can be monitored using Breiman's bounds. It also works better with many trees and may help to protect from overfitting, since model does no longer use response values but a gaussian variable with the same mean than response but not the same variance.
 	}
 	\item{rebalancedsampling}{
-	     for classification only. Can be set to TRUE or to a vector containing the desired sample size for each class. If TRUE, model builds samples where all classes are equally distributed, leading to exactly balanced classes, by either oversampling or undersampling. If vector, size of train data will change, according to the sum of the values in vector.
+	     for classification only. Can be set to TRUE or to a vector containing the desired sample size for each class. If TRUE, model builds samples where all classes are equally distributed, leading to exactly balanced classes, by either oversampling or under-sampling. If vector, size of train data will change, according to the sum of the values in vector.
 	}
 	\item{featureselectionrule}{
-	    which optimization criterion should be choosen for growing trees ? By default, model uses "entropy" (in classification) to compute information gain function. If set to "random", model chooses randomly between gini crierion and entropy for each node of each tree.	For regression, sum of squared residuals ("L2") or sum of absolute residuals ("L1") is allowed, or "random".
+	    which optimization criterion should be chosen for growing trees ? By default, model uses "entropy" (in classification) to compute information gain function. If set to "random", model chooses randomly between Gini criterion and entropy for each node of each tree. For regression, sum of squared residuals ("L2") or sum of absolute residuals ("L1") is allowed, or "random".
 	}
 	\item{randomcombination}{
 	     vector containing features index and, eventually, weight(s) for (random) combination of features. For example, if a combination of feature 1 and feature 2 is desired with a weight of 0.2 for the first, then randomcombination = c(1, 2, 0.2). If a combination of feature 3 and feature 4 is needed in the same time with a weight of 0.5, then randomcombination = c(1, 2, 3, 4, 0.2, 0.5). For full random combinations, one just put features in a vector, and then, in our example, randomcombination = c(1, 2, 3, 4). Useful sometimes to both reduce correlation between trees and increase their average individual strength (e.g. accuracy).
 	}
 	\item{randomfeature}{
-	     if TRUE, a forest of totally randomized trees (e.g. purely random forest) will be grown. In this case, there is any kind of optimization and variable importance can not be computed. Useful as a base result for forest of randomized trees, since it is statistically consistent given nodesize = sqrt(nrow(X)*log(nrow(X)), but usually reduce accuracy unless one has large dataset. 
+	     if TRUE, a forest of totally randomized trees (e.g. purely random forest) will be grown. In this case, there is no optimization. Useful as a base result for forest of randomized trees, since it is statistically consistent given nodesize = sqrt(nrow(X)*log(nrow(X)), but may reduce accuracy. 
 	}
 	\item{categoricalvariablesidx}{
-	     which variables should be considered as categorical? By default, value is NULL, and then categorical variables remain in the same approach as continous ones. If 'X' is a data frame, value can be set to "all", in which case model will automatically identify categorical variables and will use a different scheme for growing trees using these variables. If 'X' is a matrix, one has to set a vector containing index of categorical variables. For example, if feature 1 and feature 2 are categorical, then categoricalvariablesidx = c(1,2). Note that the specific method for categorical features is currently experimental and leads to better results than classic scheme only in a few cases. It is strongly recommended to try it only if one absolutely needs to tune model, knowing that safer, and usually best, option is to let default value. Even if data are categorical, random uniform forests can usually deal with them better than if another approach is tried, e.g. dummies, and variable importance will usually not be affected. Note that one can bypass default option, using formula, that will automatically build dummies and throw them to the model.
+	     which variables should be considered as categorical? By default, value is NULL, and then categorical variables remain in the same approach as continuous ones. If 'X' is a data frame, value can be set to "all", in which case model will automatically identify categorical variables and will use a different scheme for growing trees using these variables. If 'X' is a matrix, one has to set a vector containing index of categorical variables. For example, if feature 1 and feature 2 are categorical, then categoricalvariablesidx = c(1,2). Note that using formula will automatically build dummies and throw them to the model. Current engine for categorical features in random uniform forests does not use dummies and is also designed to work with variable that take discrete values. 
 	}
 	\item{na.action}{
-	    how to deal with NA data? By default, na.action = "fastImpute", using rough replacement with median or most frequent values. If speed is not required, na.action = "accurateImpute", can lead to better results using model to impute NA values. But, it is currently slow and has not been fully tested. na.action = "omit", just omit NA values and it's the only option when using formula. Note that many, accurate and fast, models (softImpute, missMDA, missForest, Amelia, ...) are available on CRAN to impute missing data. 
+	    how to deal with NA data? By default, na.action = "fastImpute", using rough replacement with median or most frequent values. If speed is not required, na.action = "accurateImpute", can lead to better results using model to impute NA values. But, one can not not expect a fast imputation. na.action = "omit", just omit NA values and it's the only option when using formula. Note that many, accurate and fast, models (softImpute, missMDA, missForest, Amelia, ...) are available on CRAN to impute missing data. 
 	}
 	\item{logX}{
 	     applies logarithm transformation to all predictors whose values are strictly positive, and ignores the others.
@@ -163,7 +163,7 @@
 	     compute model in parallel for computers with many cores. Default value is 'auto', letting model run on all logical cores minus 1. User can set 'threads' to any value greater than 1. Note that, in Windows, logical cores consume same memory than physical ones, but will not speed up computation linearly with the number of logical cores. Note that it is strongly recommended to use only one thread for small samples.
 	}
 	\item{parallelpackage}{
-	    which parallel backend to use for computing parallel tasks ? By default and for ease of use, 'doParallel' is the package retained for now. Should not be modified. It is not the fastest, but has the great advantage to allow killing task, e.g. pushing the 'Stop' button without freezing R. Note that in this case and, at least, in Windows, one has to manually terminate processes, using the 'Task manager' in order to avoid them occupying uselessly cores.  
+	    which parallel back-end to use for computing parallel tasks ? By default and for ease of use, 'doParallel' is the package retained for now. Should not be modified. It is not the fastest, but has the great advantage to allow killing task, e.g. pushing the 'Stop' button without freezing R. Note that in this case and, at least, in Windows, one has to manually terminate processes, using the 'Task manager' in order to avoid them occupying uselessly cores.  
 	}
 	\item{\dots}{
 	  not currently used.
@@ -171,8 +171,29 @@
 }
 
 \details{
- Random Uniform Forests are inspired by Bagging and Breiman's Random Forests (tm) but have many differences at theorical and algorithmic levels. Random Uniform Forests build many randomized and unpruning trees by sampling with replacement data (or subsampling, in case of regression), sampling with replacement features and choosing random cut-points according to the Uniform distribution, i.e. cut-points usually not belong to data but are virtual points drawn between the minimum and the maximum of each candidate variable at each node using the Uniform law, since all points are always numeric values. Then, node is built using information gain (or distance) between many full random nodes. Classification is done by majority vote, and regression by averaging trees. In this latter case, post-processing (designing first to reduce bias) can be done to achieve a better accuracy. Note that random Uniform Forests do not make assumptions about node size or number of candidate features at each node. Default options usually lead to good results but it is not a rule and one can try many options. Trees are  designed to have low bias and large variance, and are, thus, optimized only to have a high level of randomness. The forest maintains the bias and reduces variance, since variance of the forest is approximatively (in regression) the product of average correlation between trees residuals and average variance of trees. This leads to the same scheme for prediction error.
- Others main features are a deep analysis of variables importance and selection, treatment of imbalanced classes, quantile regression and prediction intervals, forecasting using partial dependencies,... At the algorithmic level, random Uniform Forests are natively parallel and support distributed computing using the principle "compute everywhere, combine in one place", meaning that one can compute many random Uniform Forests, using different options and different data (sharing, at least, some features), in many computers and at the end just retrieve and combine them in the place where test data belong. As a consequence, incremental learning is also native and one can remove or add trees (but not modify) at each step. Note that random Uniform Forests are strongly randomized, and then results will not be reproducible using set.seed() function. One reason is that many (including essential) options run at the tree (or node) level in order to decrease correlation. Hence, for a given training sample with enough trees and enough data, bounds estimates (OOB and Breiman ones) should act as upper bounds which will vary (depending on both training sample and the runs of the model). But test error, for any sample used with the given training sample and model, should remain below. Note also that speed is currently not at the state of art, except for big dimension ('p' far greater than 'n') or tasks with many variables and observations (for large samples, one may use incremental learning with \code{\link{rUniformForest.combine}} or \code{\link{rUniformForest.big}}), but options gives the ability to increase it by a great factor (loosing however some accuracy). 
+ Random Uniform Forests are inspired by Bagging and Breiman's Random Forests (tm) but have many differences at theoretical and algorithmic levels. 
+
+ Random Uniform Forests build many randomized and unpruned trees by :
+
+ - sampling with replacement data (or sub-sampling, in case of regression),\cr
+ - sampling with replacement features and \cr
+ - choosing random cut-points according to the Uniform distribution, i.e. cut-points usually not belong to data but are virtual points drawn between the minimum and the maximum of each candidate variable at each node using the Uniform distribution, since all points are (or will be always converted to) numeric values.
+
+ Then, node is built using information gain (or distance) between many full random nodes. Classification is done by majority vote, and regression by averaging trees. In this latter case, post-processing (designed first to reduce bias) can be done to achieve a better accuracy. 
+
+ Note that random Uniform Forests do not make assumptions about node size or number of candidate features at each node. Default options usually lead to good results but it is not a rule and one can try many options. Trees are  designed to have low bias and large variance, and are, thus, optimized only to reach a high level of randomness. The forest maintains the bias and reduces variance, since variance of the forest is approximatively (in regression) the product of average correlation between trees residuals and average variance of trees. This leads to the same scheme for prediction error.
+
+ Others main features are\cr
+ - a deep analysis of variables importance and selection,\cr
+ - treatment of imbalanced classes,\cr
+ - quantile regression,\cr
+ - prediction and confidence intervals,\cr 
+ - partial dependencies,\cr
+ - visualization to help a better interpretation,...
+  
+ At the algorithmic level, random Uniform Forests are natively parallel and support distributed computing using the principle "compute everywhere, combine in one place", meaning that one can compute many random Uniform Forests, using different options and different data (sharing, at least, some features), in many computers and at the end just retrieve and combine them in the place where test data belong. As a consequence, incremental learning is also native and one can remove or add trees (but not modify) at each step.\cr
+ Note that random Uniform Forests are strongly randomized, and then results will not be reproducible using set.seed() function. One reason is that many (including essential) options run at the tree (or node) level in order to decrease correlation. Hence, for a given training sample with enough trees and enough data, bounds estimates (OOB and Breiman's ones) should act as upper bounds which will vary (depending on both training sample and the runs of the model). But test error, for any sample used with the given training sample and model, should remain below.\cr
+ Note also that speed is currently not at the state of art, except for big dimension ('p' far greater than 'n') or tasks with many variables and observations (for large samples, one may use incremental learning with \code{\link{rUniformForest.combine}} or \code{\link{rUniformForest.big}}), but options gives the ability to increase it by a great factor (loosing however some accuracy). 
 }
 
 \value{
@@ -200,7 +221,9 @@ Breiman, L., 2001. \emph{Random Forests}, Machine Learning 45(1), 5-32.
 
 Breiman, L., Friedman, J.H., Olshen, R.A., Stone, C., 1984. \emph{Classification and Regression Trees}. New York: Chapman and Hall.
 
-Ciss, S., 2014. PhD thesis: \emph{Random uniform forests and irregularity detection in social security contributions}. Submitted. 
+Ciss, S., 2014. PhD thesis: \emph{Forets uniformement aleatoires et detection des irregularites aux cotisations sociales}. Universite Paris Ouest Nanterre, France. In french.\cr
+English title : \emph{Random Uniform Forests and irregularity detection in social security contributions}.\cr
+Link : https://www.dropbox.com/s/q7hbgeafrdd8qtc/Saip_Ciss_These.pdf?dl=0  
 
 Ho, T.K., 1998. \emph{The random subspace method for constructing decision forests}. IEEE Transactions on Pattern Analysis and Machine Intelligence 20, 832-844.
 }
@@ -211,19 +234,19 @@ Ho, T.K., 1998. \emph{The random subspace method for constructing decision fores
 
 \seealso{
  \code{\link{predict.randomUniformForest}}, \code{\link{rUniformForest.big}}, \code{\link{rUniformForest.combine}}, \code{\link{rUniformForest.grow}}, \code{\link{importance.randomUniformForest}}, \code{\link{rm.trees}},
- \code{\link{roc.curve}}, \code{\link{fillNA2.randomUniformForest}}, \code{\link{getTree.randomUniformForest}}
+ \code{\link{roc.curve}}, \code{\link{fillNA2.randomUniformForest}},\cr \code{\link{getTree.randomUniformForest}}
 }
 
 \examples{
 # NOTE : use option 'threads = 1' (disabling parallel processing) to speed up computing 
-# for small samples, since parallel processing is useful only for computationnaly intensive tasks
+# for small samples, since parallel processing is useful only for computationally intensive tasks
 
 ###### Part One : quick guide
 
 ## not run
 #### Classification 
 # data(iris)
-# iris.ruf <- timer(randomUniformForest(Species ~ ., data = iris, threads = 1))
+# iris.ruf <- randomUniformForest(Species ~ ., data = iris, threads = 1)
 # iris.ruf ## or print(iris.ruf)
 
 ## plot OOB error: 
