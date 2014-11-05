@@ -2,7 +2,7 @@ year <- sub("-.*", "", meta$Date)
 note <- sprintf("R package version %s", meta$Version)
 
 bibentry(bibtype = "Manual",
-         title = "{randomUniformForest}: random Uniform Forests for Classification and Regression",
+         title = "{randomUniformForest}: random Uniform Forests for Classification, Regression and Unsupervised Learning",
          author = c(person("Saip", "Ciss")),
          year = year,
          note = note,

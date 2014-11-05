@@ -24,6 +24,8 @@ randomUniformForest <- function(...) UseMethod("randomUniformForest")
 	
 importance <- function(object, ...) UseMethod("importance")
 
+unsupervised <- function(object,...) UseMethod("unsupervised")
+
 randomUniformForest.formula <- function(formula, data = NULL, ...)
 {
 	if (is.null(data))
@@ -32,6 +34,7 @@ randomUniformForest.formula <- function(formula, data = NULL, ...)
 	mf <- model.frame(formula = formula, data = as.data.frame(data))
 	x <- model.matrix(attr(mf, "terms"), data = mf)[,-1]
 	y <- model.response(mf)
+	names(y) = NULL
 	RUFObject <- randomUniformForest.default(x, Y = y, ...)
 	RUFObject$call <- match.call()
 	RUFObject$formula <- formula
@@ -70,9 +73,9 @@ print.randomUniformForest <- function(x,...)
 				as.numeric(object$y), falseDiscoveryRate = TRUE)$auc, 4),sep = "")
 				cat("\nOOB estimate of F1-score: ", round(fScore(object$forest$OOB), 4),sep = "")
 			}
-			cat("\nOOB geometric mean:", round(gMean(object$forest$OOB),4),"\n")
+			cat("\nOOB (adjusted) estimate of geometric mean:", round(gMean(object$forest$OOB),4),"\n")
 			if (nrow(object$forest$OOB) > 2)
-			{ cat("OOB geometric mean of the precision:", round(gMean(object$forest$OOB, precision = TRUE),4),"\n") }
+			{ cat("OOB (adjusted) estimate of geometric mean for precision:", round(gMean(object$forest$OOB, precision = TRUE),4),"\n") }
 			if (!is.null(object$forest$OOB.strengthCorr))
 			{
 				cat("\nBreiman's bounds")
@@ -86,7 +89,8 @@ print.randomUniformForest <- function(x,...)
 		else
 		{
 			cat("\nMean of squared residuals:", round(mean(object$forest$pred.error),8), "\n")
-			cat("Mean squared error bound (experimental):", round(object$forest$pred.error + object$forest$pred.error*(1- estimatePredictionAccuracy(floor(length(object$forest$OOB.predicts)*(1 - as.numeric(as.vector(object$forestParams["subsamplerate",1])))))), 6),"\n")
+			cat("Mean squared error bound (experimental):", round(object$forest$pred.error + object$forest$pred.error*(1- estimatePredictionAccuracy(floor(length(object$forest$OOB.predicts)*
+			(1 - as.numeric(as.vector(object$forestParams["subsamplerate",1])))))), 6),"\n")
 			if (length(object$forest$percent.varExplained) > 1)
 			{	
 				varExplained = object$forest$percent.varExplained
@@ -99,7 +103,7 @@ print.randomUniformForest <- function(x,...)
 			Residuals = summary(rmNA(object$forest$OOB.predicts - object$y))
 			names(Residuals) = c("Min", "1Q", "Median", "Mean", "3Q", "Max")
 			print(Residuals)
-			cat("Mean of absolute residuals:", sum(abs(object$forest$OOB.predicts - object$y))/length(object$y),"\n")						
+			cat("Mean of absolute residuals:", sum(abs(rmNA(object$forest$OOB.predicts - object$y)))/length(rmNA(object$y)),"\n")			
 			if (!is.null(object$forest$OOB.strengthCorr))
 			{
 				cat("\nBreiman's bounds")
@@ -140,7 +144,7 @@ print.randomUniformForest <- function(x,...)
 			names(Residuals) = c("Min", "1Q", "Median", "Mean", "3Q", "Max")
 			cat("Residuals:\n")
 			print(Residuals)
-			cat("Mean of absolute residuals: ", round(object$errorObject$meanAbsResiduals, 6), "\n", sep="")							
+			cat("Mean of absolute residuals: ", round(rmNA(object$errorObject$meanAbsResiduals), 6), "\n", sep="")							
 		} 		
 	}
 }
@@ -164,7 +168,13 @@ summary.randomUniformForest <- function(object, maxVar = 30, border = NA,...)
 		barplot( varImportance[nrow(varImportance):1,"percent.importance"], horiz = TRUE, col = sort(heat.colors(nrow(varImportance)), decreasing = TRUE), 
 		names.arg = varImportance[nrow(varImportance):1,"variables"], border = border,
 		xlab = "Relative Influence (%)", main = if (!object$forest$regression) { "Variable Importance based on information gain" }
-		else { "Variable Importance based on distance (L2 or L1)" })
+		else 
+		{ 
+			if ( length(grep(as.character(object$forestParams[nrow(object$forestParams),1]), "absolute")) == 1 ) 
+			{ "Variable Importance based on L1 distance" }
+			else
+			{ "Variable Importance based on L2 distance" }
+		})
 		abline(v = 100/nVar, col ='grey')
 		cat("Variables summary: ", "\n")
 		print(varImportance1)
@@ -205,7 +215,7 @@ summary.randomUniformForest <- function(object, maxVar = 30, border = NA,...)
 	}
 }
 
-plot.randomUniformForest <- function(x, threads = "auto",...) 
+plot.randomUniformForest <- function(x, threads = "auto", ...) 
 {
 	object <- x
 	if (!is.null(object$forest$OOB.votes))
@@ -213,11 +223,19 @@ plot.randomUniformForest <- function(x, threads = "auto",...)
 		Ytrain = object$y
 		OOBMonitoring = object$forest$OOB.votes
 		
-		ZZ <- monitorOOBError(OOBMonitoring, Ytrain, regression = object$forest$regression, threads = threads)
+		ff = L2Dist
+		ffComment = "OOB mean squared error"
+		if ( length(grep(as.character(object$forestParams[nrow(object$forestParams),1]), "absolute")) == 1 ) 
+		{ 
+			ff = L1Dist	
+			ffComment = "OOB mean absolute error"
+		}
+				
+		ZZ <- monitorOOBError(OOBMonitoring, Ytrain, regression = object$forest$regression, threads = threads, f = ff)
 		
 		if (object$forest$regression)
 		{
-			plot(ZZ, type = 'l', lty=2, xlab = "Trees", ylab ="OOB mean squared error", ...) 
+			plot(ZZ, type = 'l', lty=2, xlab = "Trees", ylab = ffComment, ...) 
 		}
 		else
 		{	    
@@ -354,7 +372,7 @@ randomUniformForest.default <- function(X, Y = NULL, xtest = NULL, ytest = NULL,
     importance = TRUE,	
 	bagging = FALSE,
 	unsupervised = FALSE, 
-	proximities = FALSE,
+	unsupervisedMethod = c("uniform univariate sampling", "uniform multivariate sampling", "with bootstrap"),
 	classwt = NULL,
 	oversampling = 0,
 	targetclass = -1,
@@ -376,7 +394,19 @@ randomUniformForest.default <- function(X, Y = NULL, xtest = NULL, ytest = NULL,
 		{
 			if (sample(3,1) == 3) { rm.tempdir() }
 		}
-		if (is.null(Y)) { stop("Unsupervised learning is not currently supported. Please provide a response vector.\n") }
+		if (is.null(Y)) 
+		{ 
+			cat("Enter in unsupervised learning.\n")
+			if (unsupervisedMethod[1] == "with bootstrap")
+			{ 
+				cat("'with bootstrap' is only needed as the second argument of 'unsupervisedMethod' option. Default option will be computed.\n")
+				unsupervisedMethod[1] = "uniform univariate sampling"
+			}
+			XY <- unsupervised2supervised(X, method = unsupervisedMethod[1], bootstrap = if (length(unsupervisedMethod) > 1) { TRUE } else {FALSE })
+			X = XY$X
+			Y = as.factor(XY$Y)
+			unsupervised = TRUE
+		}
 		if (ntree < 2) { stop("Please use at least 2 trees for computing forest.\n") }			
 		if ( (subsamplerate == 1) &  (replace == FALSE))  { OOB = FALSE }
 		if (depth < 3) { stop("Stumps are not allowed. Minimal depth is 3, leading, at most, to 8 leaf nodes.\n") }
@@ -389,20 +419,16 @@ randomUniformForest.default <- function(X, Y = NULL, xtest = NULL, ytest = NULL,
 		{ 
 			cat("Note: categorical variables are found in data. Please use option categoricalvariablesidx = 'all' to match them more closely.\nNote that accuracy might drop, but variable importance might be better assessed.\n")
 		}		 
-		X <- NAfactor2matrix(X)
 		if (is.data.frame(X)) 
-		{ 	cat("X is a dataframe. String or factors have been converted to numeric values.\n") }	
+		{ 	cat("X is a data frame. String or factors have been converted to numeric values.\n") }
+		X <- NAfactor2matrix(X)
 		if (!is.null(categoricalvariablesidx))
 		{
 			if (categoricalvariablesidx[1] == "all")
 			{	
 				factorVariables <- which(getFactors > 0)
 				if (length(factorVariables) > 0) 	{ 	categoricalvariablesidx = factorVariables	}
-				else
-				{ 
-				  cat("\nNo categorical variables found. Please type them manually, replacing in categoricalvariablesidx
-				  option argument 'all' by a vector of the variables that need to be treated as categorical.\n")
-				}
+				else {  cat("\nNo categorical variables found. Please type them manually\n")  }
 			}
 			else 
 			{  
@@ -412,53 +438,10 @@ randomUniformForest.default <- function(X, Y = NULL, xtest = NULL, ytest = NULL,
 		}
 		if ( length(which( (X == Inf) | (X == -Inf) ) ) > 0) 
 		{ stop("Inf or -Inf values found in data. Learning can not be done.\nRemove or replace them with NA in order to learn.\n") }
-		NAInputs = which(is.na(X), arr.ind = TRUE)[,1]
-		matchNA = (length(NAInputs) > 0)		
-		if ( (length(NAInputs) > (nrow(X) - 30)) & (na.action[1] == "omit") ) { stop("Too much missing values in data.\n") }		
-		if (!regression & !is.factor(Y) ) { Y = as.factor(Y) }
-		NALabels = which(is.na(Y))
-		matchNALabels = (length(NALabels) > 0)		
-		if ( (length(NALabels) > (length(Y) - 30)) & (na.action[1] == "omit") )	{ stop("Too much missing values in responses.\n") }			
-		if (matchNA | matchNALabels)
-		{
-			if (!is.null(Y))
-			{
-				newY <- as.vector(NAfactor2matrix(matrix(as.numeric(Y))))
-				if (na.action[1] != "omit") 
-				{ 
-					cat("NA found in data. Imputation (fast or accurate, depending on option) is used for missing values.\nIt is strongly recommended to impute values outside modelling, using one of many available models.\n")					
-					XY <- na.impute(cbind(X, newY), type = na.action[1])
-					newY <- XY[,ncol(X)+1]
-					X <- XY[,-(ncol(X)+1)]
-					rm(XY)					
-					if (is.factor(Y) & matchNALabels)
-					{	
-						levelsY = levels(Y)
-						Y[NALabels] = levelsY[newY[NALabels]]
-					}
-				}
-				else
-				{
-					if (matchNALabels & matchNA) {	rmRows = unique(c(NAInputs, NALabels))	}
-					else
-					{
-						if (matchNA) {	rmRows = unique(NAInputs)	}						
-						if (matchNALabels) 	{	rmRows = unique(NALabels)	}
-					}					 
-					X = X[-rmRows,]
-					Y = Y[-rmRows]
-				}
-			}
-			else
-			{
-				cat("If accuracy is needed, it is strongly recommended to impute values outside modelling, using one of many available models.\n")
-				if (na.action[1] != "omit") { 	X <- na.impute(X, type = na.action[1])	}
-				else
-				{		
-					if (matchNA) { X <- X[-NAInputs,] 	}		
-				}
-			}
-		}		
+		XY <- NATreatment(X, Y, na.action = na.action, regression = regression)
+		X  <- XY$X
+		Y  <- XY$Y
+		rm(XY)		
 		if (randomcombination[1] > 0)
 		{ 
 			randomcombinationString = randomcombination[1]
@@ -554,6 +537,12 @@ randomUniformForest.default <- function(X, Y = NULL, xtest = NULL, ytest = NULL,
 		RUFObject$variablesNames = c(RUFObject$variablesNames, tempVarNames)
 	}
 	if (!is.null(categoricalvariablesidx)) {  RUFObject$categoricalvariables = categoricalvariablesidx }
+	if (unsupervised) 
+	{ 
+		RUFObject$unsupervised = TRUE 
+		RUFObject$unsupervisedMethod  = if (length(unsupervisedMethod) == 3) {unsupervisedMethod[1] } 
+							else { if (length(unsupervisedMethod) == 1) { unsupervisedMethod } else { unsupervisedMethod[1:2] } }
+	}
 	RUFObject$call <- match.call()
 	class(RUFObject) <- "randomUniformForest"
 	RUFObject
@@ -581,8 +570,6 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
     rf.rebalancedSampling = FALSE,
 	rf.featureSelectionRule = c("entropy", "gini", "random", "L2", "L1"),
 	variableImportance = TRUE,	
-	unsupervised = FALSE, 
-	proximities = FALSE,
 	rf.randomCombination = 0,
 	rf.randomFeature = FALSE,
 	whichCatVariables = NULL,
@@ -591,7 +578,7 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 	parallelPackage = "doParallel",
 	export = c("uniformDecisionTree", "CheckSameValuesInAllAttributes", "CheckSameValuesInLabels", "fullNode", "genericNode", "leafNode", "randomUniformForestCore.predict", "onlineClassify", "overSampling", "predictDecisionTree", "options.filter", "majorityClass", "randomCombination", "randomWhichMax", "which.is.na", "factor2vector", "outputPerturbationSampling", "rmNA", "count.factor", 
 	"find.idx", "classifyMatrixCPP", "L2DistCPP", "checkUniqueObsCPP", "crossEntropyCPP", "giniCPP", "L2InformationGainCPP",
-	"entropyInformationGainCPP", "runifMatrixCPP"))
+	"entropyInformationGainCPP", "runifMatrixCPP", "NATreatment"))
 {
 	set.seed(sample(ntree,1))	
 	if ((rf.randomFeature) & (features == "random") ) { stop("random feature is a special case of mtry = 'random'") }
@@ -723,7 +710,7 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 		}
 	}
 	{
-		#require(parallel)	
+		## require(parallel)	
 		max_threads = detectCores()		
 		if (threads == "auto")
 		{	
@@ -733,11 +720,11 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 		else
 		{
 			if (max_threads < threads) 
-			{	cat("Warning : number of threads is higher than logical threads in this computer.\n") }
+			{	cat("Note: number of threads is higher than logical threads in this computer.\n") }
 		}
 		
 		{
-			#require(doParallel)			
+			## require(doParallel)			
 			Cl = makePSOCKcluster(threads, type = "SOCK")
 			registerDoParallel(Cl)
 		}
@@ -795,7 +782,7 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 			if (BreimanBounds)
 			{
 				strengthCorr.object <- strength_and_correlation(s.trainLabels = trainLabels, OOB.votes2, OOB.object, rf.classes, 
-					s.regression = rf.regression, s.parallelPackage = parallelPackage[1])
+					s.regression = rf.regression, s.parallelPackage = parallelPackage[1], s.threads = detectCores(logical = FALSE))
 			}
 			if (rf.regression)
 			{  
@@ -1243,11 +1230,12 @@ pr.imbalance = c(0,0),
 pr.regression = TRUE,
 pr.classwt = FALSE,  
 classes = -1,
-pr.export = c("onlineClassify", "predictDecisionTree", "majorityClass", "rmNA", "mergeLists", "classifyMatrixCPP", "L2DistCPP", "checkUniqueObsCPP", "crossEntropyCPP", "giniCPP", "L2InformationGainCPP",	"entropyInformationGainCPP", "runifMatrixCPP"), 
+pr.export = c("onlineClassify", "predictDecisionTree", "majorityClass", "randomWhichMax", "rmNA", "mergeLists", "classifyMatrixCPP", 
+"L2DistCPP", "checkUniqueObsCPP", "crossEntropyCPP", "giniCPP", "L2InformationGainCPP",	"entropyInformationGainCPP", "runifMatrixCPP", "NATreatment"), 
 pr.threads = "auto", 
 pr.parallelPackage = "doParallel")
 {
-	#require(rUniformForestCppClass)	
+	## require(rUniformForestCppClass)	
 	if (!OOB.idx)
 	{
 		if (is.matrix(X))
@@ -1255,7 +1243,7 @@ pr.parallelPackage = "doParallel")
 			matchNA = (length(which(is.na(X))) > 0)		
 			if (matchNA) 
 			{ 
-				cat("NA found in data. Fast imputation (means) is used for missing values. Please use one of many models available if acccuracy is needed\n")
+				cat("NA found in data. Fast imputation (means) is used for missing values. Please use one of many models available if accuracy is needed\n Or use na.impute() function with the option 'na.action = accurateImpute'.")
 				X <- na.impute(X)
 			}
 		}
@@ -1265,7 +1253,7 @@ pr.parallelPackage = "doParallel")
 			matchNA = (length(which(is.na(X))) > 0)		
 			if (matchNA) 
 			{ 
-				cat("NA found in data. Fast imputation (means) is used for missing values. Please use one of many models available if acccuracy is needed\n")
+				cat("NA found in data. Fast imputation (means) is used for missing values. Please use one of many models available if accuracy is needed\n Or use na.impute() function with the option 'na.action = accurateImpute'.")
 				X <- na.impute(X)
 			}
 		}
@@ -1303,12 +1291,12 @@ pr.parallelPackage = "doParallel")
 		all.votes = nodes.length = nodes.depth = matrix(data = Inf, nrow = n, ncol = ntree)
 		majority.vote = vector(length = n)		
 		fullDim = ntree*n		
-		if (fullDim < 1e7)
+		if ((fullDim < 1e7) | (pr.threads == 1))
 		{	pred.X <- lapply(object, function(Z) predictDecisionTree(Z, X))	 }
 		else
 		{
 			{
-				#require(parallel)	
+				## require(parallel)	
 				max_threads = detectCores()				
 				if (pr.threads == "auto")
 				{	
@@ -1318,9 +1306,9 @@ pr.parallelPackage = "doParallel")
 				else
 				{
 					if (max_threads < pr.threads) 
-					{	cat("Warning : number of threads is higher than logical threads in this computer.\n") }
+					{	cat("Note: number of threads is higher than logical threads in this computer.\n") }
 				}
-				#require(doParallel)	
+				## require(doParallel)	
 				Cl = makePSOCKcluster(pr.threads, type = "SOCK")
 				registerDoParallel(Cl)
 				chunkSize  <-  ceiling(n/getDoParWorkers())
@@ -1368,7 +1356,9 @@ majorityClass <- function(all.votes, classes, m.regression = FALSE, m.imbalance 
 {
 	if (m.regression)
 	{	
-		all.votes[all.votes == Inf] = NA;  majority.vote = apply(all.votes, 1, function(all.votes) mean(rmNA(all.votes))); class.counts = NULL	
+		all.votes[all.votes == Inf] = NA  
+		majority.vote = rowMeans(all.votes, na.rm = TRUE) 
+		class.counts = NULL	
 		return(list(majority.vote = majority.vote, class.counts = class.counts))
 	}
 	else
@@ -1385,8 +1375,7 @@ majorityClass <- function(all.votes, classes, m.regression = FALSE, m.imbalance 
 				for (j in 1:l.class) 
 				{
 					idx = rmNA(which(all.votes[i,] == classes[j]))
-					l.idx = length(idx)
-									
+					l.idx = length(idx)									
 					if (l.idx > 0) {   class.occur[j] = sum(m.classwt[i,idx]) }
 					else	{ class.occur[j] = 0 }
 				}				
@@ -1397,7 +1386,7 @@ majorityClass <- function(all.votes, classes, m.regression = FALSE, m.imbalance 
 			}				
 			if (m.imbalance[1] != 0)
 			{	class.occur[m.imbalance[1]] = floor(class.occur[m.imbalance[1]]*m.imbalance[2]) } 
-			majority.vote[i] = which.max(class.occur)
+			majority.vote[i] = randomWhichMax(class.occur)
 			class.countsMajorityVote[i,] = c(class.occur[majority.vote[i]], class.occur[-majority.vote[i]])
 			trueClass.counts[i,]  = class.occur
 		}
@@ -1440,17 +1429,17 @@ strength_and_correlation <- function(OOB.votes, OOB.object,
 	}
 	else
 	{
-		#require(parallel)		
+		## require(parallel)		
 		max_threads = detectCores()		
 		if (s.threads == "auto")
 		{	s.threads  = max(1, max_threads - 1)  }
 		else
 		{
 			if (max_threads < s.threads) 
-			{	cat("Warning : number of threads is higher than logical threads in this computer.\n") }
+			{	cat("Note: number of threads is higher than logical threads in this computer.\n") }
 		}
 		{	
-			#require(doParallel)
+			## require(doParallel)
 			Cl <- makePSOCKcluster(s.threads, type ="SOCK")
 			registerDoParallel(Cl)
 		}
@@ -1471,9 +1460,10 @@ strength_and_correlation <- function(OOB.votes, OOB.object,
 		}
 		else
 		{
-			Q.x.j = (apply(OOB.object$class.counts[,-1], 1, max))/rowSums(OOB.object$class.counts)
-			Q.x.y = OOB.object$class.counts[,1]/rowSums(OOB.object$class.counts)
-			rawStrength = Q.x.y - Q.x.j			
+			nn = rowSums(OOB.object$class.counts)
+			Q.x.j = apply(OOB.object$class.counts[,-1], 1, max)
+			Q.x.y = OOB.object$class.counts[,1]			
+			rawStrength = (Q.x.y - Q.x.j)/nn
 			maj.class.j = vector(length = n.OOB)
 			for (i in 1:n.OOB)
 			{  
@@ -1503,13 +1493,13 @@ strength_and_correlation <- function(OOB.votes, OOB.object,
 	}
 }
 
-monitorOOBError  <- function(OOB.votes, Y, regression = FALSE, threads = "auto")
+monitorOOBError  <- function(OOB.votes, Y, regression = FALSE, threads = "auto", f = L2Dist)
 {
 	j = NULL
 	n = length(Y)
 	n.RS = sqrt(n)
 	p = ncol(OOB.votes)	
-	#require(parallel)	
+	## require(parallel)	
 	max_threads = detectCores()		
 	if (threads == "auto")
 	{	
@@ -1519,9 +1509,9 @@ monitorOOBError  <- function(OOB.votes, Y, regression = FALSE, threads = "auto")
 	else
 	{
 		if ((max_threads) < threads) 
-		{	 cat("Warning : number of threads is higher than logical threads in this computer\n.") }
+		{	 cat("Note: number of threads is higher than logical threads in this computer\n.") }
 	}	
-	#require(doParallel)			
+	## require(doParallel)			
 	Cl = makePSOCKcluster(threads, type = "SOCK")
 	registerDoParallel(Cl)	
 	chunkSize  <-  ceiling(p/getDoParWorkers())
@@ -1550,17 +1540,17 @@ monitorOOBError  <- function(OOB.votes, Y, regression = FALSE, threads = "auto")
 	}
 	else
 	{
-		OOBmonitor <- foreach(j = 1:(p-1), .export = c("generalization.error", "confusion.matrix", "majorityClass", "rmNA", "L2Dist"), 
+		OOBmonitor <- foreach(j = 1:(p-1), .export = c("generalization.error", "confusion.matrix", "majorityClass", "rmNA", "L2Dist", "L1Dist"), 
 			.options.smp = smpopts, .combine = c) %dopar%
 		{
 			Z = majorityClass(OOB.votes[,1:(j+1)], 0, m.regression = TRUE)$majority.vote
 			NAIdx = which(is.na(Z))
-			if (length(NAIdx) > 0) { L2Dist(Z[-NAIdx], Y[-NAIdx])/length(Z[-NAIdx])}
-			else { L2Dist(Z, Y)/length(Z)  }
+			if (length(NAIdx) > 0) { f(Z[-NAIdx], Y[-NAIdx])/length(Z[-NAIdx])}
+			else { f(Z, Y)/length(Z)  }
 		}		
 		Z = majorityClass(matrix(OOB.votes[,1]), 0, m.regression = TRUE)$majority.vote
 		NAIdx = which(is.na(Z))
-		E0 = if (length(NAIdx) > 0) { L2Dist(Z[-NAIdx], Y[-NAIdx])/length(Z[-NAIdx])} else { L2Dist(Z, Y)/length(Z)  }
+		E0 = if (length(NAIdx) > 0) { f(Z[-NAIdx], Y[-NAIdx])/length(Z[-NAIdx])} else { f(Z, Y)/length(Z)  }
 		OOBmonitor = c(E0,OOBmonitor)
 	}	
 	stopCluster(Cl)
@@ -1762,7 +1752,7 @@ localVariableImportance <- function(object, nbVariables = 2, Xtest = NULL, predO
 	{
 		n = dim(pred.rufObject[[1]])[1]
 		{
-			#require(parallel)
+			## require(parallel)
 			threads = l.threads
 			max_threads = detectCores()			
 			if (threads == "auto")
@@ -1773,10 +1763,10 @@ localVariableImportance <- function(object, nbVariables = 2, Xtest = NULL, predO
 			else
 			{
 				if ((max_threads) < threads) 
-				{	cat("Warning : number of threads is higher than logical threads in this computer.\n") }
+				{	cat("Note: number of threads is higher than logical threads in this computer.\n") }
 			}
 			{
-				#require(doParallel)				
+				## require(doParallel)				
 				Cl = makePSOCKcluster(threads, type = "SOCK")
 				registerDoParallel(Cl)
 			}
@@ -1907,7 +1897,7 @@ importance.randomUniformForest <- function(object, maxVar = 30, maxInteractions 
 				{  
 					if (!is.null(object$paramsObject[1,catVarIdx]))
 					{	
-						cat("Warning : all categorical variables have been ignored for the logarithm transformation.\nIf only some of them have been defined as categorical, variable importance will be altered.\n To avoid it, please define logarithm transformation outside of the model or ignore categorical variables, or set them to 'all'.\n")
+						cat("Note: all categorical variables have been ignored for the logarithm transformation.\nIf only some of them have been defined as categorical, variable importance will be altered.\n To avoid it, please define logarithm transformation outside of the model or ignore categorical variables, or set them to 'all'.\n")
 						Xtest[,-trueFactorsIdx] <- generic.log(Xtest[,-trueFactorsIdx])						
 					}
 					else
@@ -2139,7 +2129,7 @@ partialDependenceOverResponses <- function(Xtest, importanceObject, whichFeature
 		{ stop ("Not enough points to plot partial dependencies. Please increase order of interaction when computing importance.") }	
 		if (is.matrix(importanceObject$localVariableImportance))
 		{
-			#require(ggplot2) || install.packages("ggplot2")
+			## require(ggplot2) || install.packages("ggplot2")
 			if ( ((smallLength < maxClasses) | is.factor(Xtest[,whichFeature])) & (smallLength/n <  1/5)) 
 		    {
 				A = if (flagFactor) { as.factor(partialDependenceMatrix[,1]) } else { partialDependenceMatrix[,1] } 
@@ -2164,7 +2154,7 @@ partialDependenceOverResponses <- function(Xtest, importanceObject, whichFeature
 		}
 		else
 		{
-			#require(ggplot2) || install.packages("ggplot2")
+			## require(ggplot2) || install.packages("ggplot2")
 			colnames(partialDependenceMatrix) = c("Observations", "Class")
 			partialDependenceMatrix = data.frame(partialDependenceMatrix)
 			variablesNames = unique(partialDependenceMatrix$Class)
@@ -2207,7 +2197,7 @@ partialDependenceBetweenPredictors <- function(Xtest, importanceObject, features
 {
 	Variable1 = Variable2 = SameClass = ..level.. = Response = NULL
 	if (length(features) != 2) { stop("Please provide two features.") }	
-	#require(ggplot2)
+	## require(ggplot2)
 	graphics.off()	
 	pD1 <- partialDependenceOverResponses(Xtest, importanceObject, whichFeature = features[1], whichOrder = whichOrder, 
 		outliersFilter = outliersFilter, plotting = FALSE, followIdx = TRUE, maxClasses = maxClasses)	
@@ -2400,7 +2390,8 @@ partialDependenceBetweenPredictors <- function(Xtest, importanceObject, features
 			round(importanceObject$partialDependence[idxf1, idxf2],4), "\n", "(", round(round(importanceObject$partialDependence[idxf1, idxf2],4)/max(importanceObject$partialDependence[-np[1], -np[2]])*100,2), "% of the feature(s) with maximum level", ")\n",  sep="")
 		}
 	}
-	cat("\n")	
+	cat("\n\n")
+	cat("Please use the R menu to tile vertically windows in order to see all plots.\n")
 	if (perspective & is.matrix(importanceObject$localVariableImportance))
 	{
 		dev.new()
@@ -2557,7 +2548,7 @@ twoColumnsImportance <- function(importanceObjectMatrix)
 
 plot.importance <- function(x, nGlobalFeatures = 30, nLocalFeatures = 5, Xtest = NULL, whichFeature = NULL, whichOrder = "all", outliersFilter = TRUE, formulaInput = NULL, border = NA, ...)
 {
-	cat("\nPlease use R menu to tile vertically windows and see all plots.\n")
+	cat("\nPlease use the R menu to tile vertically windows in order to see all plots.\n")
 	object <- x
 	if (nrow(x$partialDependence) < 3)
 	{
@@ -2570,11 +2561,10 @@ plot.importance <- function(x, nGlobalFeatures = 30, nLocalFeatures = 5, Xtest =
 		{
 			mf <- model.frame(formula = formulaInput, data = as.data.frame(Xtest))
 			Xtest <- model.matrix(attr(mf, "terms"), data = mf)[,-1]
-			cat("Warning : please not that categorical variables have lost their original values when using formula.\nIt is strongly recommended to not use formula if one wants to assess importance\n \n.")
+			cat("Note: please note that categorical variables have lost their original values when using formula.\nIt is strongly recommended to not use formula if one wants to assess importance\n \n.")
 		}
 		else
 		{		
-			#Xtest = NAfactor2matrix(Xtest)
 			matchNA = (length(which(is.na(Xtest))) > 0)				
 			if (matchNA) 
 			{ 
@@ -2634,13 +2624,14 @@ plot.importance <- function(x, nGlobalFeatures = 30, nLocalFeatures = 5, Xtest =
 		par(las=1)
 	    par(mar = c(5, maxChar + 1,4,2))
 		nbFeatures3 = min(nbFeatures2, nrow(object$localVariableImportance$classVariableImportance))
-		mosaicplot(t(object$localVariableImportance$classVariableImportance[1:nbFeatures3,]), color = sort(heat.colors(nbFeatures3), 
+		mosaicplot(t(object$localVariableImportance$classVariableImportance[1:nbFeatures3,,drop = FALSE]), 
+			color = sort(heat.colors(nbFeatures3),
 			decreasing = FALSE), main = "Variable importance over labels", border = border)
 	}
 	else
 	{
 		dev.new()
-		#require(ggplot2) || install.packages("ggplot2")
+		## require(ggplot2) || install.packages("ggplot2")
 		ggData = twoColumnsImportance(object$localVariableImportance)
 		mostImportantFeatures = as.numeric(names(sort(table(ggData[,2]), decreasing = TRUE)))	
 		if (length(unique(ggData[,2])) > maxVar2)
@@ -2847,7 +2838,7 @@ fillNA2.randomUniformForest <- function(X, Y = NULL, ntree = 100, mtry = 1, node
 categoricalvariablesidx = NULL, NAgrep = "", maxClasses = floor(0.01*min(3000, nrow(X))+2), threads = "auto")
 {	
     i = NULL 
-	if (ntree > 100 & nodesize == 1)
+	if ((ntree > 100) & (nodesize == 1))
 	{ 
 		cat("For nodesize = 1, ntree cannot currently set higher than 100. Resetting to default value.\n")
 		ntree = 100
@@ -2869,8 +2860,18 @@ categoricalvariablesidx = NULL, NAgrep = "", maxClasses = floor(0.01*min(3000, n
 		X.factors = rep(0,ncol(X))
 	}	
 	NAIdx = which(is.na(X), arr.ind = TRUE)	
-	if (dim(NAIdx)[1] == 0) { stop("No missing values in data. Please use 'NAgrep' option to specify missing values.\n Function checks for NA in data and for the string given by 'NAgrep'.") }	
-	processedFeatures = unique(NAIdx[,2])	
+	if (dim(NAIdx)[1] == 0) { stop("No missing values in data. Please use NAgrep option to specify missing values.\nFunction checks for NA in data and for the string given by NAgrep. Please also check if string does not contain space character") }	
+	processedFeatures = unique(NAIdx[,2])
+	nbNA = table(NAIdx[,2])
+	fullNAFeatures = which(nbNA == n)
+	fullNAFeaturesLength = length(fullNAFeatures)
+	if (fullNAFeaturesLength == length(processedFeatures))
+	{	stop("All features have only NA in their values.\n") }
+	else
+	{	
+		if (fullNAFeaturesLength > 0) 
+		{	processedFeatures = processedFeatures[-fullNAFeatures] }
+	}
 	nFeatures = length(processedFeatures)	
 	idx <- lapply(processedFeatures, function(Z) NAIdx[which(NAIdx[,2] == Z),1]) 
 	validIdx <- sapply(idx, function(Z) (length(Z) >  limitSize))
@@ -2890,7 +2891,7 @@ categoricalvariablesidx = NULL, NAgrep = "", maxClasses = floor(0.01*min(3000, n
 		X <- fillVariablesNames(X)
 		X <- na.replace(X, fast = TRUE)			
 		{
-			#require(parallel)	
+			## require(parallel)	
 			max_threads = min(detectCores(),4)		
 			if (threads == "auto")
 			{	
@@ -2900,16 +2901,16 @@ categoricalvariablesidx = NULL, NAgrep = "", maxClasses = floor(0.01*min(3000, n
 			else
 			{
 				if (max_threads < threads) 
-				{	cat("Warning : number of threads is higher than logical threads in this computer.\n") }
+				{	cat("Note: number of threads is higher than logical threads in this computer.\n") }
 			}			
 			threads = min(nFeatures, max_threads)
-			#require(doParallel)			
+			## require(doParallel)			
 			Cl <- makePSOCKcluster(threads, type = "SOCK")
 			registerDoParallel(Cl)		
 			chunkSize <- ceiling(nFeatures/getDoParWorkers())
 			smpopts  <- list(chunkSize = chunkSize)
 		}				
-		export = c("randomUniformForest.default", "rUniformForest.big", "randomUniformForestCore.big", "randomUniformForestCore", "predict.randomUniformForest", "rUniformForestPredict", "uniformDecisionTree", "CheckSameValuesInAllAttributes", "CheckSameValuesInLabels", "fullNode", "genericNode", "leafNode", "filter.object", "filter.forest", "randomUniformForestCore.predict", "onlineClassify", "overSampling", "predictDecisionTree", "options.filter", "majorityClass", "randomCombination", "randomWhichMax", "vector2matrix", "which.is.na", "which.is.factor", "factor2vector", "outputPerturbationSampling", "rmNA", "count.factor", "find.idx", "genericOutput", "fillVariablesNames", "is.wholenumber", "rm.tempdir", "setManyDatasets", "onlineCombineRUF", "mergeLists", "classifyMatrixCPP", "L2DistCPP", "checkUniqueObsCPP", "crossEntropyCPP", "giniCPP", "L2InformationGainCPP", "entropyInformationGainCPP", "runifMatrixCPP", "NAfactor2matrix", "factor2matrix", "as.true.matrix")
+		export = c("randomUniformForest.default", "rUniformForest.big", "randomUniformForestCore.big", "randomUniformForestCore", "predict.randomUniformForest", "rUniformForestPredict", "uniformDecisionTree", "CheckSameValuesInAllAttributes", "CheckSameValuesInLabels", "fullNode", "genericNode", "leafNode", "filter.object", "filter.forest", "randomUniformForestCore.predict", "onlineClassify", "overSampling", "predictDecisionTree", "options.filter", "majorityClass", "randomCombination", "randomWhichMax", "vector2matrix", "which.is.na", "which.is.factor", "factor2vector", "outputPerturbationSampling", "rmNA", "count.factor", "find.idx", "genericOutput", "fillVariablesNames", "is.wholenumber", "rm.tempdir", "setManyDatasets", "onlineCombineRUF", "mergeLists", "classifyMatrixCPP", "L2DistCPP", "checkUniqueObsCPP", "crossEntropyCPP", "giniCPP", "L2InformationGainCPP", "entropyInformationGainCPP", "runifMatrixCPP", "NAfactor2matrix", "factor2matrix", "as.true.matrix", "NAFeatures", "NATreatment")
 		if (nrow(X) < 2001)
 		{
 			newX <- foreach( i= 1:nFeatures, .options.smp = smpopts, .inorder = FALSE, .combine = cbind, 
@@ -2918,23 +2919,22 @@ categoricalvariablesidx = NULL, NAgrep = "", maxClasses = floor(0.01*min(3000, n
 				if (X.factors[processedFeatures[i]] == 1)
 				{
 					rufObject <- randomUniformForest.default(X[-idx[[i]],-processedFeatures[i]], 
-					Y = as.factor(X[-idx[[i]], processedFeatures[i]]), OOB = FALSE, importance = FALSE, ntree = ntree, mtry = mtry, nodesize = nodesize, threads = 1, categoricalvariablesidx =  categoricalvariablesidx)
+								Y = as.factor(X[-idx[[i]], processedFeatures[i]]), OOB = FALSE, importance = FALSE, ntree = ntree, mtry = mtry, nodesize = nodesize, threads = 1, categoricalvariablesidx = categoricalvariablesidx)
 							
 					X[idx[[i]], processedFeatures[i]] <- as.numeric(as.vector(predict.randomUniformForest(rufObject, 
 						X[idx[[i]], -processedFeatures[i]])))
 				}
 				else
 				{
-					rufObject <- randomUniformForest.default(X[-idx[[i]],-processedFeatures[i]], Y = X[-idx[[i]], processedFeatures[i]], OOB = FALSE, importance = FALSE, ntree = ntree, mtry = mtry, 
-					nodesize = nodesize, threads = 1, categoricalvariablesidx =  categoricalvariablesidx)
+					rufObject <- randomUniformForest.default(X[-idx[[i]],-processedFeatures[i]], Y = X[-idx[[i]], processedFeatures[i]], 
+								OOB = FALSE, importance = FALSE, ntree = ntree, mtry = mtry, nodesize = nodesize, threads = 1,
+								categoricalvariablesidx =  categoricalvariablesidx)
 						
 					X[idx[[i]], processedFeatures[i]] <- predict.randomUniformForest(rufObject, 
 					X[idx[[i]], -processedFeatures[i]])	
 				}							
-				if (mean(is.wholenumber(rmNA(X[-idx[[i]], processedFeatures[i]]))) == 1) 
-				{  round(X[,processedFeatures[i]]) }
-				else 
-				{  X[,processedFeatures[i]]  }	
+				if (mean(is.wholenumber(rmNA(X[-idx[[i]], processedFeatures[i]]))) == 1) {  round(X[,processedFeatures[i]]) }
+				else {  X[,processedFeatures[i]]  }	
 			}			
 			X[,processedFeatures] = newX
 			stopCluster(Cl)				
@@ -2946,23 +2946,24 @@ categoricalvariablesidx = NULL, NAgrep = "", maxClasses = floor(0.01*min(3000, n
 				if (X.factors[processedFeatures[i]] == 1)
 				{
 					rufObject <- rUniformForest.big(X[-idx[[i]],-processedFeatures[i]], Y = as.factor(X[-idx[[i]], 
-						processedFeatures[i]]), nforest = max(1, floor(nrow(X[-idx[[i]],])/2000)), replacement = TRUE, randomCut = TRUE, OOB = FALSE, importance = FALSE, ntree = ntree, mtry = mtry, 
-						nodesize = nodesize, threads = 1, categoricalvariablesidx =  categoricalvariablesidx)
+						processedFeatures[i]]), nforest = max(1, floor(nrow(X[-idx[[i]],])/2000)), replacement = TRUE, randomCut = TRUE, 
+						OOB = FALSE, importance = FALSE, ntree = ntree, mtry = mtry, nodesize = nodesize, threads = 1, categoricalvariablesidx =  categoricalvariablesidx)
 							
 					X[idx[[i]], processedFeatures[i]] <- as.numeric(as.vector(predict.randomUniformForest(rufObject, 
 						X[idx[[i]], -processedFeatures[i]])))
 				}
 				else
 				{
-					rufObject <- rUniformForest.big(X[-idx[[i]],-processedFeatures[i]], Y = X[-idx[[i]], processedFeatures[i]], nforest = max(1, floor(nrow(X[-idx[[i]],])/2000)), replacement = TRUE, randomCut = TRUE, OOB = FALSE, importance = FALSE, ntree = ntree, mtry = mtry, nodesize = nodesize, threads = 1, categoricalvariablesidx = categoricalvariablesidx)
+					rufObject <- rUniformForest.big(X[-idx[[i]],-processedFeatures[i]], Y = X[-idx[[i]], processedFeatures[i]], 
+						nforest = max(1, floor(nrow(X[-idx[[i]],])/2000)), replacement = TRUE, randomCut = TRUE, OOB = FALSE, 
+						importance = FALSE, ntree = ntree, mtry = mtry, nodesize = nodesize, threads = 1, 
+						categoricalvariablesidx = categoricalvariablesidx)
 						
 					X[idx[[i]], processedFeatures[i]] <- predict.randomUniformForest(rufObject, X[idx[[i]], -processedFeatures[i]])	
 				}
 							
-				if (mean(is.wholenumber(rmNA(X[-idx[[i]], processedFeatures[i]]))) == 1) 
-				{  round(X[,processedFeatures[i]]) }
-				else 
-				{  X[,processedFeatures[i]]  }	
+				if (mean(is.wholenumber(rmNA(X[-idx[[i]], processedFeatures[i]]))) == 1) {  round(X[,processedFeatures[i]]) }
+				else  {  X[,processedFeatures[i]]  }	
 			}
 			X[,processedFeatures] = newX
 			stopCluster(Cl)
@@ -2982,5 +2983,865 @@ categoricalvariablesidx = NULL, NAgrep = "", maxClasses = floor(0.01*min(3000, n
 		}
 		return(X)
 	}
+}
+
+# unsupervised Learning = unsupervised2supervised + rUF model + proximity + MDSscale (+ gap) + kmeans 
+unsupervised2supervised <- function(X, method = c("uniform univariate sampling", "uniform multivariate sampling"), bootstrap = FALSE)
+{
+	np = dim(X); n = np[1]; p = np[2]
+	flag = FALSE
+	syntheticTrainLabels1 = rep(0,n)
+	if (!is.null(rownames(X))) { rowNamesX = rownames(X); flag = TRUE }
+	if (is.data.frame(X))
+	{	
+		X = NAfactor2matrix(X) 
+		cat("X is a data frame and has been converted to a matrix.\n")
+	}
+	
+	XX = matrix(data = NA, nrow = n, ncol = p)
+	
+	if (method[1] == "uniform univariate sampling")
+	{	XX <- apply(X, 2, function(Z) sample(Z, n, replace = bootstrap))  }
+	else
+	{
+		for (j in 1:p)
+		{
+			set.seed(sample(1e9,1))
+			XX[,j] = sample(X, n, replace = bootstrap)
+			
+			outOfRange = which( (XX[,j] > max(X[,j])) | (XX[,j] < min(X[,j])) )
+			while (length(outOfRange) > 0)
+			{	
+				XX[outOfRange, j] = sample(X, length(outOfRange), replace = bootstrap)	
+				outOfRange = which( (XX[,j] > max(X[,j])) | (XX[,j] < min(X[,j])) )
+			}
+		}	
+	}
+	newX = rbind(X, XX)
+	if (flag) { rownames(newX) = c(rowNamesX, rowNamesX) }
+	syntheticTrainLabels2 = rep(1, n)	
+	Y = c(syntheticTrainLabels1, syntheticTrainLabels2)
+	
+	return(list(X = newX, Y = Y))	
+}
+
+proximitiesMatrix <- function(object, fullMatrix = TRUE, Xtest = NULL, predObject = NULL, pthreads = "auto")
+{ 
+	# proximity matrix of cases : the bigger the value, the closest is proximity of i an j cases
+	object = filter.object(object)
+
+	if (is.null(object$predictionObject))
+	{
+		if (is.null(predObject)) 
+		{ 
+			if (is.null(Xtest))	{ stop("please provide test data.\n") }
+			else
+			{
+				predObject <- predict.randomUniformForest(object, Xtest, type = "all")
+				votesData = predObject$votes.data
+			}
+		}
+		else 
+		{  
+			if (is.null(predObject$majority.vote)) 
+			{ stop("Please provide full prediction object (type = 'all') when calling predict() function") }
+			else 
+			{	votesData = predObject$votes.data 	}
+		}				
+	}		
+	else
+	{	votesData = object$predictionObject$votes.data	}
+		
+	n = nrow(votesData[[1]])  
+	p = length(votesData)
+
+	#require(parallel)	
+	max_threads = detectCores()
+					
+	if (pthreads == "auto")
+	{	
+		if (max_threads == 2) { pthreads = max_threads }
+		else {	pthreads  = max(1, max_threads - 1)  }
+	}
+	else
+	{
+		if (max_threads < pthreads) 
+		{  cat("Note : number of threads is higher than logical threads in this computer.\n") }
+	}
+	
+	if (n < 500) { threads = 1 }
+		
+	#require(doParallel)	
+	Cl = makePSOCKcluster(pthreads, type = "SOCK")
+	registerDoParallel(Cl)
+			
+	if (fullMatrix)
+	{	
+		operatorLimit = 3*800*n^2/(10000^2)
+		if ( memory.limit() < operatorLimit)
+		{ 
+			cat("Proximity matrix is likely to be too big. Model will compute a 'n x p' matrix with p = number of trees\n")
+			proxMatrix = matrix(0L, p, n)
+			fullMatrix = FALSE
+		}
+		else
+		{	proxMatrix = matrix(0L, n, n) }
+		
+		proxMat = proxMatrix 
+		proxMatrix <- foreach(i = 1:n, .combine = rbind, .multicombine = TRUE) %dopar%
+		{		
+			for(j in 1:p)
+			{
+				common.idx = which((votesData[[j]][i,3] == votesData[[j]][,3]))
+				proxMat[i, common.idx] = 1L + proxMatrix[i,common.idx] 
+			}
+			proxMat[i,]			
+		}		
+	}
+	else
+	{	
+		proxMatrix  = matrix(0L, n, p)
+		proxMat = proxMatrix 
+		proxMatrix <- foreach(i = 1:n, .combine = rbind, .multicombine = TRUE) %dopar%
+		#for (i in 1:n)
+		{		
+			for(j in 1:p)
+			{
+				common.idx = which((votesData[[j]][i,3] == votesData[[j]][,3]))
+				proxMatrix[common.idx,j] = 1L + proxMatrix[common.idx,j] 
+			}
+			proxMatrix[i,]
+		}		
+	}
+	stopCluster(Cl)
+	varNames = NULL
+	if (fullMatrix) { nn = n }
+	else { nn = p }
+	for (i in 1:nn) { varNames = c(varNames,paste("C", i, sep="")) }
+              	
+	colnames(proxMatrix) = varNames
+	rownames(proxMatrix) = if (!is.null(rownames(Xtest))) { rownames(Xtest) } else { 1:n }
+	
+	return(proxMatrix/p)
+}
+	
+kBiggestProximities <- function(proximitiesMatrix, k) t(apply(proximitiesMatrix, 1, function(Z) sort(Z, decreasing = TRUE)[1:(k+1)][-1] ))
+
+MDSscale <- function(proximitiesMatrix, metric = c("metricMDS", "nonMetricMDS"), dimension = 2,  distance = TRUE, plotting = TRUE)
+{
+	if (metric[1] == "metricMDS")  
+	{ 
+		if (distance)  { d = stats::dist(1 - proximitiesMatrix) }
+		else 
+		{ 
+			if (nrow(proximitiesMatrix) == ncol(proximitiesMatrix)) {	d = 1 - proximitiesMatrix  }
+			else { d = stats::dist(1 - proximitiesMatrix); cat("Matrix is not a square matrix. Distance is used.\n") }
+		}
+		fit = stats::cmdscale(d, eig = TRUE, k = dimension) 
+	}	
+	else
+	{	
+		eps = 1e-6
+		if (distance)  { d = eps + stats::dist(1 - proximitiesMatrix) }
+		else 
+		{ 
+			if (nrow(proximitiesMatrix) == ncol(proximitiesMatrix)) {	d = 1 - (proximitiesMatrix - eps)  }
+			else { d = eps + stats::dist(1 - proximitiesMatrix); cat("Matrix is not a square matrix. Distance is used.\n") }
+		}
+		
+		#require(MASS)
+		fit = MASS::isoMDS(d, k = dimension)
+	}
+		
+	if (plotting)
+	{ 
+		x <- fit$points[,1]
+		y <- fit$points[,2]
+		plot(x, y, xlab = "Coordinate 1", ylab = "Coordinate 2", main = metric[1], type = "p", lwd = 1, pch = 20)
+	}
+	
+	return(fit)
+}
+
+gap.stats <- function(fit, B = 100, maxClusters = 5)
+{
+	#require(cluster)
+	return(cluster::clusGap(fit, FUN = kmeans, K.max = max(2, maxClusters), B = B))	
+}
+
+kMeans <- function(fit, gapStatFit, maxIters = 10, plotting = TRUE, algorithm = NULL, k = NULL, reduceClusters = FALSE)
+{
+	if (is.null(maxIters)) { maxIters = 10 }
+	if (is.null(algorithm)) { algorithm = "Hartigan-Wong" }
+	
+	if (is.null(k))
+	{
+		k = cluster::maxSE(gapStatFit$Tab[, "gap"], gapStatFit$Tab[, "SE.sim"])
+		if (k == 1) { cat("Only one cluster has been found.\nNumber of clusters has been set to 2.\n") ; k = 2 }
+		if (k == length(gapStatFit$Tab[, "gap"])) 
+		{  cat("\nNumber of clusters found is equal to the maximum number of clusters allowed.\n") }
+	}
+	fit.kMeans <- stats::kmeans(fit, k, iter.max = maxIters, algorithm = algorithm)
+	
+	if ( (k > 2) & reduceClusters)
+	{
+		clusterSizes = table(fit.kMeans$cluster)
+		smallSizes = which(clusterSizes < 0.05*length(fit[,1]))
+		nSmallSizes = length(smallSizes)
+		if (nSmallSizes > 0)
+		{ 
+			smallSizes = sort(smallSizes, decreasing = TRUE)
+			for (i in 1:nSmallSizes)
+			{	
+				fit.kMeans$cluster[which(fit.kMeans$cluster == smallSizes[i])] =  as.numeric(names(clusterSizes))[max(1,smallSizes-1)]
+			}
+		}		
+	}
+	
+	if (plotting)
+	{
+		x = fit[,1]
+		y = fit[,2]
+		plot(x, y, xlab = "Coordinate 1", ylab = "Coordinate 2", main = "Multi-dimensional scaling", type = "p", lwd = 1, pch = 20)
+		for (i in 1:k)
+		{  
+			idx = which(fit.kMeans$cluster == i)
+			points(x[idx], y[idx], type = "p", lwd = 1, pch = 20, col = i)
+			#legend(max(x) - 1.25, max(y) + 0.35 + 0.5*(1-i), paste("Cluster ", i), fill= i, border =NA, bty="n", col = i)
+		}
+	}
+	
+	return(fit.kMeans)
+}
+
+hClust <- function(proximities, method = NULL, plotting = TRUE, k = NULL, reduceClusters = FALSE)
+{
+	if (is.null(method)) { method = "complete" }
+	d <- stats::dist(1 - proximities)
+	XClust <- stats::hclust(d, method = method,  members = NULL)
+	
+	if (is.null(k))
+	{
+		diffHeightsIdx = which.max(diff(XClust$height))
+		height = (XClust$height[diffHeightsIdx] +  XClust$height[diffHeightsIdx-1])/2
+		values <- stats::cutree(XClust, h = height)
+		nbClusters = length(unique(values))
+	}
+	else
+	{
+		nbClusters = k
+		values <- stats::cutree(XClust, k = nbClusters)
+		height = NULL
+	}
+	
+	if ( (nbClusters > 2) & reduceClusters)
+	{
+		clusterSizes = table(values)
+		smallSizes = which(clusterSizes < 0.05*length(values))
+		nSmallSizes = length(smallSizes)
+		if (nSmallSizes > 0)
+		{ 
+			smallSizes = sort(smallSizes, decreasing = TRUE)
+			for (i in 1:nSmallSizes)
+			{	
+				values[which(values == smallSizes[i])] =  as.numeric(names(clusterSizes))[max(1,smallSizes-1)]
+			}
+		}		
+	}
+	
+	if (plotting)
+	{	
+		plot(XClust, xlab = "Observations", labels = FALSE)
+		showLabels = if (nrow(proximities) < 300) { TRUE } else { FALSE }
+		# A2Rplot(XClust, k = nbClusters, boxes = TRUE, show.labels = FALSE, main = "Dendrogram")
+		if (!is.null(height)) { abline(h = height , col='red') }
+	}
+	
+    return(list(object = XClust, cluster = values))
+}
+
+
+observationsImportance <- function(X, importanceObject)
+{
+	X = factor2matrix(X)
+	object = importanceObject$localVariableImportance$obsVariableImportance[,-1]
+	idx = grep("localVariableFrequency",colnames(object))
+	object = object[,-idx]
+	n = nrow(X)
+	XX = matrix(NA, n, ncol(object))
+	for (i in 1:nrow(X))
+	{	XX[i,] = X[i, object[i,]]	}
+	
+	rownames(XX) = 1:n
+	return(XX)
+}
+
+print.unsupervised <- function(x, ...)
+{
+	object = x
+	rm(x)
+	Z = object$unsupervisedModel$cluster
+	if (!is.factor(Z))
+	{
+		if (!is.null(object$unsupervisedModel$clusterOutliers))
+		{	
+			Z = c(Z, object$unsupervisedModel$clusterOutliers)				
+			Z = sortDataframe( data.frame(Z, as.numeric(names(Z))), 2)
+			Z = Z[,1]
+		}
+	}	
+	ZZ = table(Z)
+	names(attributes(ZZ)$dimnames) = NULL
+	
+	if (object$params["endModel"] == "MDS")
+	{
+		x = object$MDSModel$points[,1]
+		y = object$MDSModel$points[,2]
+		percentExplained = (interClassesVariance(x, Z) +  interClassesVariance(y, Z))/(variance(x) + variance(y))
+		
+		cat("Average variance between clusters (in percent of total variance): ", round(100*percentExplained,2), "%\n", sep = "")
+				
+		cat("Average silhouette: ", round(mean(cluster::silhouette(as.numeric(Z), dist(object$MDSModel$points))[,3]),4), "\n",  sep = "")
+		cat("Clusters size:\n")
+		print(ZZ)
+		cat("Clusters centers (in the MDS coordinates):\n") 
+		print(round(object$unsupervisedModel$centers,4))		
+	}
+		
+	if (object$params["endModel"] == "MDSkMeans")
+	{
+		cat("Average variance between clusters (in percent of total variance): ", round(100*sum(object$unsupervisedModel$betweenss)/sum(object$unsupervisedModel$totss),2), "%\n", sep = "")
+				
+		cat("Average silhouette: ", round(mean(cluster::silhouette(Z, dist(object$MDSModel$points))[,3]),4), "\n",  sep = "")
+		cat("Clusters size:\n")
+		print(ZZ)
+		cat("Clusters centers (in the MDS coordinates):\n") 
+		print(round(object$unsupervisedModel$centers,4))		
+	}
+	
+	if (object$params["endModel"] == "MDShClust")
+	{
+		x = object$MDSModel$points[,1]
+		y = object$MDSModel$points[,2]
+		
+		percentExplained1 = interClassesVariance(x, Z)/variance(x)
+		percentExplained2 = interClassesVariance(y, Z)/variance(y)
+		percentExplained  = round(0.5*(percentExplained1 + percentExplained2), 4)				
+		cat("Average variance between clusters (in percent of total variance) : ", percentExplained*100, "%\n", sep = "")
+		
+		cat("Average silhouette : ", round(mean(cluster::silhouette(Z, dist(object$MDSModel$points))[,3]),4), "\n",  sep = "")
+		cat("Clusters size:\n")
+		print(ZZ)
+	}
+}
+
+plot.unsupervised <- function(x, importanceObject = NULL, xlim = NULL, ylim = NULL,...)
+{
+	object = x
+	rm(x)
+	x = object$MDSModel$points[,1]
+	y = object$MDSModel$points[,2]
+	
+	offsetY = 0
+	if (!is.null(importanceObject))
+	{
+		clusterFeatures = importanceObject$localVariableImportance$classVariableImportance
+		p = ncol(clusterFeatures)
+		clusterFeaturesNames = NULL
+		varNames = varValues = vector(length = p)
+		for (j in 1:p)
+		{
+			clusterFeatures = sortDataframe(clusterFeatures, j, decrease = TRUE)
+			idx = which(clusterFeatures[,j] > 0.05)
+			varNames[j] = rownames(clusterFeatures)[idx[1]]
+			varValues[j] = clusterFeatures[idx[[1]],j]
+			clusterFeaturesNames = c(clusterFeaturesNames, paste(varNames[j], ":", round(100*varValues[j],0), "%",	sep ="" ))
+		}
+		offsetY = -abs(diff(range(y)))*0.1
+	}
+		
+	clusters = object$unsupervisedModel$cluster
+	
+	if (object$params["endModel"] != "MDS")
+	{
+		if (!is.null(object$unsupervisedModel$clusterOutliers))
+		{	
+			clusters = c(clusters, object$unsupervisedModel$clusterOutliers)				
+			clusters = sortDataframe( data.frame(clusters, as.numeric(names(clusters))),2)
+			clusters = clusters[,1]
+		}
+	}
+	
+	# percentExplained1 = round(interClassesVariance(x, clusters)/variance(x), 4)*100
+	# percentExplained2 = round(interClassesVariance(y, clusters)/variance(y), 4)*100
+	
+	offsetX = abs(diff(range(x)))*0.15
+	uniqueClusters = sort(unique(clusters))
+	
+	dev.new()
+	if (object$params["endModel"] == "MDShClust")
+	{
+		dev.off()
+		nbClusters =  length(uniqueClusters)
+		
+		XClust = object$unsupervisedModel$object
+		diffHeightsIdx = which.max(diff(XClust$height))
+		height = (XClust$height[diffHeightsIdx] +  XClust$height[diffHeightsIdx-1])/2				
+		showLabels = if (nrow(object$proximityMatrix) < 300) { TRUE } else { FALSE }
+		plot(XClust)
+		abline(h = height , col='red') 
+		
+		# A2Rplot(object$unsupervisedModel$object, k = nbClusters, boxes = TRUE, show.labels = FALSE, 
+		# main = "Dendrogram", col.down = nbClusters:1)
+		
+		cat("Two graphics have been plotted. Please slide the window to see the second one.\n")
+		dev.new()		
+	}
+	
+	if (is.null(xlim)) { xlim = c(min(x) - offsetX, max(x) + offsetX) }
+	if (is.null(ylim)) { ylim = c(min(y) + offsetY, max(y)) }
+	
+	plot(x, y, xlab = "Coordinate 1", ylab = "Coordinate 2", main = "Multidimensional scaling and Clusters representation", type = "p", 
+	lwd = 1, pch = 20, xlim = xlim, ylim = ylim)
+	nbCusters = length(uniqueClusters)
+	for (i in 1:nbCusters)
+	{  
+		idx = which(clusters == uniqueClusters[i])
+		points(x[idx], y[idx], type = "p", lwd = 1, pch = 20, col = i)
+		if (object$params["endModel"] != "MDShClust")
+		{	points(object$unsupervisedModel$centers[i,1], object$unsupervisedModel$centers[i,2], lwd = 1, cex = 1.5, pch = 8, col = i)	}
+	}
+		
+	if (!is.null(importanceObject))
+	{ 	
+		clusterNames = rm.string(colnames(clusterFeatures), "Class ")
+		legend("topright", inset = .01, clusterNames, fill = 1:i, horiz = FALSE, border = NA, bty ="n")
+		legend("bottomleft", cex = 0.7, as.character(clusterFeaturesNames), fill = 1:i, horiz = TRUE, border = NA, bty ="n")		
+		print(clusterFeatures)		
+	}
+	else
+	{ legend("topright", inset = .01, as.character(uniqueClusters), fill = 1:i, horiz = FALSE, border = NA, bty ="n")}
+	
+}
+
+modifyClusters <- function(object, decreaseBy = NULL, increaseBy = NULL)
+{
+	params = object$modelParams
+	endModel = object$params["endModel"]
+	nbClusters = object$nbClusters
+	
+	if (!is.null(decreaseBy))
+	{	k = nbClusters - decreaseBy }
+	
+	if (!is.null(increaseBy))
+	{	k = nbClusters + increaseBy }
+	
+	if (is.null(decreaseBy) & (is.null(increaseBy)))
+	{	stop("Please increase or decrease number of clusters")  }
+	
+	if (k <= 1) 
+	{ 
+		cat("Only one cluster will remain. Model has not been modified.\n") 
+		return(object)
+	}
+	else
+	{
+	
+		endModelMetric = if (object$params["endModelMetric"] == "NULL") { NULL } else { object$params["endModelMetric"] }
+		
+		if (endModel == "MDSkMeans")
+		{
+			maxIters = if (object$params["maxIters"] == "NULL") { 10 } else { as.numeric(object$params["maxIters"]) }
+			X.model <- kMeans(object$MDSModel$points, NULL, k = k, maxIters = maxIters, algorithm = endModelMetric, plotting = FALSE, reduceClusters = FALSE)		
+		}
+		
+		if (endModel == "MDShCluster")
+		{	X.model <- hClust(object$MDSModel$points, method = endModelMetric, plotting = FALSE, k = k, reduceClusters = FALSE)	 }
+		object$unsupervisedModel = NULL
+		object$unsupervisedModel = X.model  
+		object$nbClusters = k
+		
+		return(object)
+	}
+}
+
+mergeClusters <- function(object, whichOnes)
+{
+	whichOnes = sort(whichOnes)
+	
+	idx1 = which(object$unsupervisedModel$cluster == whichOnes[1])	
+	object$unsupervisedModel$cluster[idx1] = whichOnes[2]
+	
+	flag = FALSE
+	if (!is.null(object$unsupervisedModel$clusterOutliers))
+	{  
+		idx1 = which(object$unsupervisedModel$clusterOutliers == whichOnes[1])
+		if (length(idx1) > 0) { object$unsupervisedModel$clusterOutliers[idx1] = whichOnes[2] }
+		flag = TRUE
+	}
+		
+	idx2 = which(object$unsupervisedModel$cluster == whichOnes[2])
+	object$unsupervisedModel$centers[whichOnes[2],] = t(colMeans(object$MDSModel$points[idx2,]))
+	object$unsupervisedModel$centers = object$unsupervisedModel$centers[-whichOnes[1],]
+	
+	idx = sort(unique(object$unsupervisedModel$cluster))
+	for (i in 1:length(idx))
+	{
+		newIdx = which(object$unsupervisedModel$cluster == idx[i])
+		object$unsupervisedModel$cluster[newIdx] = i
+		if (flag)
+		{  
+			newOutliersIdx = which(object$unsupervisedModel$clusterOutliers == idx[i])
+			if (length(newOutliersIdx) > 0)  { object$unsupervisedModel$clusterOutliers[newOutliersIdx] = i }
+		}
+	}
+	rownames(object$unsupervisedModel$centers) = 1:i
+	cat(paste("\ncluster ", idx, " has been changed to ", 1:i, sep=""))
+	cat("\n")
+	
+	return(object)
+}
+
+clusteringObservations <- function(object, X, OOB = FALSE, predObject = NULL, importanceObject = NULL, 
+baseModel = c("proximity", "proximityThenDistance",  "importanceThenDistance"),
+MDSmetric = c("metricMDS", "nonMetricMDS"),
+endModel = c("MDS", "MDSkMeans", "MDShClust"),
+...)
+{
+	clusterObject <- unsupervised.randomUniformForest(object, Xtest = X, importanceObject = importanceObject, predObject = predObject, baseModel = baseModel[1], MDSmetric = MDSmetric[1], endModel = endModel[1], outliersFilter = FALSE, OOB = OOB, ...)
+	plot(clusterObject, importanceObject = importanceObject, ...)
+	return(clusterObject)
+}
+
+as.supervised <- function(object, X, ...)
+{
+	if (class(object) != "unsupervised")
+	{	stop("Please provide an unsupervised randomUniformForest object.\n") }
+	
+	clusters = object$unsupervisedModel$cluster
+	if (!is.null(object$unsupervisedModel$clusterOutliers))
+	{	clusters = c(clusters, object$unsupervisedModel$clusterOutliers)	}			
+	clusters  = sortDataframe( data.frame(clusters, as.numeric(names(clusters ))),2)
+	Y = as.factor(clusters[,1])
+	n = nrow(X)
+	if (n < 10000) { rUFObject <- randomUniformForest(X, Y, ...)	}
+	else { rUFObject <- rUniformForest.big(X, Y, nforest = min(2, floor(n/2000)), randomCut = TRUE, ...)  }
+	
+	return(rUFObject)	
+}
+
+
+unsupervised.randomUniformForest <- function(object, 
+baseModel = c("proximity", "proximityThenDistance",  "importanceThenDistance"),
+endModel = c("MDSkMeans", "MDShClust", "MDS"),
+endModelMetric = NULL,
+samplingMethod = c("uniform univariate sampling", "uniform multivariate sampling", "with bootstrap"),
+MDSmetric = c("metricMDS", "nonMetricMDS"),
+computeFullMatrix = TRUE,
+proximityMatrix = NULL,
+outliersFilter = FALSE, 
+Xtest = NULL, 
+predObject = NULL, 
+nBiggestProximities = NULL,
+metricDimension = 2, 
+coordinates = c(1,2),
+bootstrapReplicates = 100,
+clusters = NULL,
+maxIters = NULL,
+importanceObject = NULL,
+maxInteractions = 2,
+reduceClusters = FALSE, 
+maxClusters = 5,
+mapAndReduce = FALSE,
+OOB = FALSE, 
+uthreads = "auto",
+...)
+{
+	if (!is.null(predObject))
+	{
+		if (is.null(predObject$votes.data))
+		{ stop("predObject must be provided using option type = 'all' when calling the predict() function.\n") }
+	}	
+	
+	if (!is.null(Xtest)) 
+	{ 	
+		Xtest = NAfactor2matrix(Xtest)
+		if (length(which(is.na(Xtest)) > 0) ){ stop("NA found in data. Please treat them outside the model.\n") }
+	}
+	
+	objectClass = class(object)
+	if (objectClass != "randomUniformForest")
+	{
+		X = object
+		n = nrow(X)
+		#if (n > 100000) { stop("Please use unsupervised.combine() function to combine unsupervised models based on chunks of data")
+		
+		if (samplingMethod[1] == "with bootstrap")
+		{ 
+			cat("'with bootstrap' is only needed as the second argument of 'method' option. Default option will be computed.\n")
+			samplingMethod[1] = "uniform univariate sampling"
+		}
+		XY <- unsupervised2supervised(X, method = samplingMethod[1], bootstrap = if (length(samplingMethod) > 1) { TRUE } else {FALSE })
+		
+		if ((n > 10000) | mapAndReduce)
+		{	
+			rUF.model <- rUniformForest.big(XY$X, as.factor(XY$Y), BreimanBounds = FALSE, unsupervised = TRUE, unsupervisedMethod = samplingMethod[1], nforest = max(2, floor(n/5000)), randomCut = TRUE,...)  
+		}
+		else
+		{ 	
+			rUF.model <- randomUniformForest(XY$X, as.factor(XY$Y), BreimanBounds = FALSE, 
+			unsupervised = TRUE, unsupervisedMethod = samplingMethod[1],...)  
+		}
+		
+		if (is.null(Xtest)) { Xtest = XY$X[1:n,] }
+	}
+	else
+	{	
+		if (objectClass == "randomUniformForest") { rUF.model = object	}
+		else { stop("data are missing or object is not of class randomUniformForest.") }
+		n = if (is.null(object$unsupervised)) { length(object$y) } else {  length(object$y)/2 }
+	}
+	
+	if (!is.null(Xtest)) { n = nrow(Xtest) }
+		
+	operatorLimit = 3*800*n^2/(10000^2)
+	export = c("proximitiesMatrix", "filter.object", "uniformDecisionTree", "randomUniformForestCore.predict", "onlineClassify",  "predictDecisionTree", "factor2vector", "outputPerturbationSampling", "rmNA", "count.factor", "predict.randomUniformForest", "rUniformForestPredict", "fillVariablesNames", "NAfactor2matrix", "factor2matrix", "as.true.matrix", "filter.forest", "majorityClass", "na.impute", "na.replace", "which.is.factor", "modX", "NATreatment")
+	
+	if (baseModel[1] != "importanceThenDistance")
+	{
+		if (is.null(proximityMatrix))
+		{
+			if ( (memory.limit() < operatorLimit) | (n > 2000) | mapAndReduce )
+			{
+				chunks = max(4, floor(n/2000))
+				XList = vector('list', chunks)
+				cutOffs = cut(1:n, chunks, labels = FALSE)
+				Xtest = NAfactor2matrix(Xtest)
+				for (i in 1:chunks)
+				{
+					idx = which(cutOffs == i)
+					XList[[i]] = Xtest[idx,]
+				}
+					
+				#proxMat = matrix(0, n, length(rUF.model$forest$object))
+				proxMatList <- lapply(XList, function(Z) proximitiesMatrix(rUF.model, fullMatrix = FALSE, Xtest = Z, 
+					predObject = predObject, pthreads =  uthreads))
+				
+				proxMat = NULL
+				for (i in 1:length(	proxMatList))
+				{	proxMat = rbind(proxMat, proxMatList[[i]]) }
+				rm(proxMatList)
+			}
+			else
+			{	
+				proxMat <- proximitiesMatrix(rUF.model, fullMatrix = computeFullMatrix, Xtest = Xtest, predObject = predObject, pthreads =  uthreads) 
+			}
+		}
+		else
+		{ proxMat <- proximityMatrix }
+	}
+	else
+	{
+		if (!is.null(importanceObject)) { imp.rUFModel = importanceObject }
+		else { imp.rUFModel <- importance(rUF.model, Xtest = Xtest, maxInteractions = maxInteractions) }
+		proxMat <- observationsImportance(Xtest, imp.rUFModel) 
+	}
+	
+	p = ncol(proxMat)
+	if ( ((p !=  nrow(proxMat)) | mapAndReduce)  &  is.null(nBiggestProximities)) { nBiggestProximities = 10 }
+	if (!is.null(nBiggestProximities)) { proxMat =  kBiggestProximities(proxMat, min(nBiggestProximities, p)) }
+		
+	grepMDS = length(grep("MDS", endModel[1]))
+	if (grepMDS == 1)
+	{
+		flagParallel = FALSE
+		if (n > 2000) 	{ 	flagParallel = TRUE 	}
+		
+		distanceProxy = TRUE
+		if (baseModel[1] == "proximity") { 	distanceProxy = FALSE }		
+		if (flagParallel)
+		{
+			chunks = floor(n/1000)
+			proxMatList = vector('list', chunks)
+			cutOffs = cut(1:n, chunks, labels = FALSE)
+			for (i in 1:chunks)
+			{
+				idx = which(cutOffs == i)
+				if (p == n) {  proxMatList[[i]] = proxMat[idx, idx] }
+				else { proxMatList[[i]] = proxMat[idx, ]  }
+			}
+			
+			#require(parallel)	
+			max_threads = detectCores()
+			
+			if (uthreads == "auto")
+			{	
+				if (max_threads == 2) { uthreads = max_threads }
+				else {	uthreads = max(1, max_threads - 1)  }
+			}
+			else
+			{
+				if (max_threads < uthreads) 
+				{	cat("Note : number of threads is higher than logical threads in this computer.\n") }
+			}
+			
+			#require(doParallel)	
+			Cl = makePSOCKcluster(uthreads, type = "SOCK")
+			registerDoParallel(Cl)
+			
+			export2 = c("dist", "MDSscale", "mergeLists")
+
+			X.scale <- foreach(i = 1:chunks, .export = export2, .packages = c("stats", "MASS"), .combine = "mergeLists") %dopar%
+			{					
+				MDSobject <- MDSscale(proxMatList[[i]], metric = MDSmetric[1], dimension = metricDimension, distance = distanceProxy, 
+				plotting = FALSE)  
+								
+				MDSobject
+			}			
+			stopCluster(Cl)
+		}	
+		else
+		{	X.scale <- MDSscale(proxMat, metric = MDSmetric[1], dimension = metricDimension, distance = distanceProxy, plotting = FALSE)  }
+		
+		Z = X.scale$points
+		nn = nrow(Z)
+		if (endModel[1] == "MDS") { outliersFilter = FALSE }
+		if (outliersFilter)
+		{
+			idx1 = which(  (Z[,1] < quantile(Z[,1], 0.05)) & (Z[,2] < quantile(Z[,2], 0.05)) ) 
+			idx2 = which( (Z[,1] > quantile(Z[,1], 0.95)) & (Z[,2] > quantile(Z[,2], 0.95)))
+			idx12 = c(idx1, idx2)
+			if (length(idx12) > 0)	{ Z = Z[-idx12,]  }
+			nn = nrow(Z)
+		}
+		
+		if (is.null(predObject))
+		{
+			if (endModel[1] == "MDS")
+			{
+				X.gapstat = NULL 
+				if (is.null(object$unsupervised))
+				{
+					if (OOB)
+					{
+						if (!is.null(object$forest$OOB.predicts))
+						{	predictions = object$forest$OOB.predicts }
+						else
+						{ 
+							cat("OOB option has been called, but there is currently no OOB classifier. Hence true labels have been used.\n") 
+							predictions = object$y
+						}						
+					}
+					else
+					{	
+						if (is.null(object$predictionObject)) { predictions = object$y }
+						else { 	predictions = object$predictionObject$majority.vote }				
+					}
+					
+					classes = sort(unique(predictions))
+					k = length(classes)
+					centers = matrix(0, k, ncol(X.scale$points))
+					for (i in 1:k)
+					{	
+						idx = which(predictions == classes[i])
+						centers[i,] = colMeans(X.scale$points[idx,])
+					}
+					rownames(centers) = as.character(classes)
+					X.model = list(cluster = predictions, centers = centers)
+				}
+				else
+				{
+					cat("clustering is not done in this mode except in the supervised mode.\nPlease send ...$MDSModel$points to a clustering algorithm.\n")
+					X.model = list(cluster = NULL, centers = NULL)
+				}
+			}			
+					
+			if (endModel[1] == "MDSkMeans")
+			{
+				if (is.null(clusters))  
+				{	X.gapstat <- gap.stats(Z[sample(nn, floor(sqrt(nn*log(nn)))),], B = bootstrapReplicates, maxClusters = maxClusters) }
+				else 
+				{ X.gapstat = NULL }
+				
+				X.model <- kMeans(Z, X.gapstat, k = clusters, maxIters = maxIters, plotting = FALSE, algorithm = endModelMetric, reduceClusters = reduceClusters)			
+			}
+			
+			if (endModel[1] == "MDShClust")  
+			{	
+				X.model <- hClust(Z, method = endModelMetric, plotting = FALSE, k = clusters, reduceClusters = reduceClusters)
+				X.gapstat = NULL	
+			}
+
+			if (outliersFilter)
+			{
+				if (length(idx12) > 0)
+				{
+					if (endModel[1] == "MDSkMeans")
+					{	clusterOutliers <- which.is.nearestCenter(X.scale$points[c(idx1,idx2),], X.model$centers)	}
+					if (endModel[1] == "MDShClust")  
+					{	
+						nbClusters = length(unique(X.model$cluster))
+						centers = matrix(NA, nbClusters, ncol(Z))
+						for (i in 1:nbClusters)
+						{
+							idx = which(X.model$cluster == i)
+							centers[i,] = colMeans(Z[idx,, drop = FALSE])
+						}
+						
+						clusterOutliers <- which.is.nearestCenter(X.scale$points[c(idx1,idx2),], centers)	
+					}
+					names(clusterOutliers) = c(idx1,idx2)
+					X.model$clusterOutliers = clusterOutliers
+				}
+			}
+		}
+		else
+		{
+			predictions = predObject$majority.vote
+			classes = sort(unique(predictions))
+			k = length(classes)
+			centers = matrix(0, k, ncol(X.scale$points))
+			for (i in 1:p)
+			{	
+				idx = which(predictions == classes[i])
+				centers[i,] = colMeans(X.scale$points[idx,])
+			}
+			rownames(centers) = as.character(classes)
+			X.model = list(cluster = predictions, centers = centers)
+			X.gapstat = NULL 
+		}
+	}
+	else
+	{
+		X.scale = NULL
+		if (endModel[1] == "kMeans")
+		{
+			if (is.null(clusters))  
+			{	X.gapstat <- gap.stats(proxMat[sample(n, floor(n/10)),], B = bootstrapReplicates, maxClusters = maxClusters) }
+			else 
+			{ X.gapstat = NULL }		
+			X.model <- kMeans(proxMat, X.gapstat, k = clusters, maxIters = maxIters, plotting = FALSE, algorithm = endModelMetric)
+		}
+		
+		if (endModel[1] == "hClust")  
+		{	
+			X.model <- hClust(proxMat, method = endModelMetric, plotting = FALSE, k = clusters)
+			X.gapstat = NULL 
+		}
+	}
+	clusters = length(unique(X.model$cluster))	
+		
+	modelParams = c(baseModel[1], endModel[1],  if (is.null(endModelMetric)) { "NULL" } else { endModelMetric }, 
+	samplingMethod[1], MDSmetric[1], computeFullMatrix, is.null(Xtest), is.null(predObject),  
+	if (is.null(nBiggestProximities)) { "NULL" } else { nBiggestProximities },  metricDimension, concatCore(as.character(coordinates)), bootstrapReplicates, clusters, if (is.null(maxIters)) { "NULL" } else { maxIters }, maxInteractions, maxClusters, mapAndReduce, outliersFilter, reduceClusters)
+
+	names(modelParams) = c("baseModel", "endModel", "endModelMetric", "samplingMethod", "MDSmetric", "computeFullMatrix", "Xtest", "predObject", "nBiggestProximities", " metricDimension", "coordinates", "bootstrapReplicates", "clusters", "maxIters", "maxInteractions", "maxClusters", "mapAndReduce", "outliersFilter", "reduceClusters")
+		
+	unsupervisedObject = list(proximityMatrix = proxMat, MDSModel = X.scale, unsupervisedModel = X.model, gapStatistics = X.gapstat, 
+		rUFObject = rUF.model, nbClusters = clusters,  params = modelParams ) 
+		
+	class(unsupervisedObject) <- "unsupervised"
+	
+	unsupervisedObject
 }
 # END OF FILE

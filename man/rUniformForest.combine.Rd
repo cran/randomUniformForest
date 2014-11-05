@@ -19,12 +19,12 @@ rUniformForest.combine(...)
 \details{
   Incremental learning is assumed as a sub-sampling process if distribution is not switching. Data arrive continuously and random Uniform Forests
   are trained and updated using chunks of the data. Computing time and memory are constant and only prediction time will increase depending on the size (number of trees) of the model. Hence "split-apply-combine" ideas will matter and chunks just have to be processed on all available workstations. For a shifting distribution, changes can happen in the current processed chunk or between one chunk and another. Then, one
-  needs to choose how the model has to be updated. Note that incremental learning is effective because cut-points are chosen randomly, according to the Uniform law on the support of each candidate variable. rUniformForest.combine() acts as "compute everywhere, combine in one place" and there is no need to split data here nor to apply the same model. Data are assumed to come from any source, continuously and by chunks, sharing only the same or some common features. Parameters in any model are allowed to change.
+  needs to choose how the model has to be updated. Note that incremental learning is effective because cut-points are chosen randomly, according to the Uniform distribution on the support of each candidate variable. rUniformForest.combine() acts as "compute everywhere, combine in one place" and there is no need to split data here nor to apply the same model. Data are assumed to come from any source, continuously and by chunks, sharing only the same or some common features. Parameters in any model are allowed to change.
 }
 
 
 \value{
-  an object of class randomUniformforest
+  an object of class randomUniformForest
 }
 
 \author{
@@ -96,3 +96,6 @@ rUniformForest.combine(...)
 ## confusion matrix
 # table(ruf.offline.pred, Y[which(manyCuts == 5)])
 }
+
+\keyword{incremental}
+\keyword{learning}

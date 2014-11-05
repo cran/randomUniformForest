@@ -238,14 +238,80 @@ NAfactor2matrix =function(X, toGrep = "")
 	return(X)
 }
 
-NAFeatures <- function(X) apply(X,2, function(Z) { if (is.na(sum(Z))) { 1 } else{ 0 } })
+NAFeatures <- function(X) apply(X,2, function(Z) { if (length(rmNA(Z)) == 0) { 1 } else{ 0 } })
 
 rmNA = function(X)
 {
 	NAIdx = which(is.na(X))	
 	if (length(NAIdx) > 0) { return(X[-NAIdx])	}
 	else { return(X) }
-}	
+}
+
+NATreatment <- function(X, Y, na.action = c("fastImpute", "accurateImpute", "omit"), regression = TRUE)
+{
+	featuresWithNAOnly = which(NAFeatures(X) == 1)
+	if (length(featuresWithNAOnly) == ncol(X)) { stop("Data have only NA values") }
+	if (length(featuresWithNAOnly) > 0) 
+	{ 
+		X = X[,-featuresWithNAOnly] 
+		cat("\nVariables with NA values only have been found and removed.\n")
+	}
+	NAvalues = which(is.na(X), arr.ind = TRUE)
+	NAInputs = NAvalues[,1]
+	matchNA = (length(NAInputs) > 0)		
+	if ( (length(unique(NAInputs)) > (nrow(X) - 30)) & (na.action[1] == "omit") ) 
+	{ stop("Too much missing values in data. Please impute missing values in order to learn the data.\n") }		
+	if (!regression & !is.factor(Y) ) { Y = as.factor(Y) }
+	
+	NALabels = which(is.na(Y))
+	matchNALabels = (length(NALabels) > 0)		
+	if ( (length(NALabels) > (length(Y) - 30)) & (na.action[1] == "omit") )	{ stop("Too much missing values in responses.\n") }			
+	if (matchNA | matchNALabels)
+	{
+		if (!is.null(Y))
+		{
+			if (matchNALabels) { newY = Y }
+			else  { newY <- as.vector(NAfactor2matrix(as.numeric(Y))) }
+			if (na.action[1] != "omit") 
+			{ 
+				cat("NA found in data. Imputation (fast or accurate, depending on option) is used for missing values.\nIt is strongly recommended to impute values outside modelling, using one of many available models.\n")					
+				XY <- na.impute(cbind(X, newY), type = na.action[1])
+				Y <- XY[,ncol(X)+1]
+				X <- XY[,-(ncol(X)+1)]
+				rm(XY)					
+				# if (is.factor(Y) & matchNALabels)
+				# {	
+					# levelsY = levels(Y)
+					# Y[NALabels] = levelsY[newY[NALabels]]
+				# }
+			}
+			else
+			{
+				if (matchNALabels & matchNA) {	rmRows = unique(c(NAInputs, NALabels))	}
+				else
+				{
+					rmRows = NULL
+					if (matchNA) {	rmRows = c(rmRows, unique(NAInputs))	}						
+					if (matchNALabels) 	{	rmRows = c(rmRows,unique(NALabels))	}
+				}					 
+				X = X[-rmRows,]
+				Y = Y[-rmRows]
+			}
+		}
+		else
+		{
+			cat("\nIf accuracy is needed, it is strongly recommended to impute values outside modelling, using one of many available models.\n")
+			if (na.action[1] != "omit") { 	X <- na.impute(X, type = na.action[1])	}
+			else
+			{		
+				if (matchNA) { X <- X[-NAInputs,] 	}		
+			}
+		}
+	}
+		
+	return(list(X = X, Y = Y))
+}		
+
 
 rmInf = function(X)
 {
@@ -564,7 +630,7 @@ mergeLists <- function(X, Y, add = FALSE, OOBEval = FALSE)
 {
 	n = length(X)
 	if (length(Y) != n)
-	{ stop("lists size not equal") }
+	{ stop("lists size not equal.\n") }
 	else
 	{ 	
 		Z = vector('list', n)
@@ -609,22 +675,32 @@ mergeLists <- function(X, Y, add = FALSE, OOBEval = FALSE)
 								newM2 <- matrix(apply(ZZ, 1, function(Z) sample(Z, min(pX, pY), replace= TRUE)), ncol = min(pX, pY))
 							
 								Z[[i]] = cbind(ZZ, newM2)
+							
 							}
 						}							
 					}
 					else
-					{	Z[[i]] = c(X[[i]],Y[[i]])	}
+					{	
+						if ( (is.null(X[[i]])) & (is.null(Y[[i]])) ) { Z[[i]] = NULL }
+						else {	Z[[i]] = c(X[[i]],Y[[i]])	}
+					}
 				}
 				else
 				{
 					if (is.matrix(X[[i]])) 	{	Z[[i]] = rbind(X[[i]],Y[[i]])  }
-					else {	Z[[i]] = c(X[[i]],Y[[i]])	}
+					else 
+					{		
+						if ( (is.null(X[[i]])) & (is.null(Y[[i]])) ) { Z[[i]] = NULL }
+						else {	Z[[i]] = c(X[[i]],Y[[i]])	}					
+					}
 				}
 			}
 		}
+		names(Z) = names(X)
 		return(Z)
 	}
 }
+
 
 rm.InAList = function(X,idx)
 { 	
@@ -1082,8 +1158,7 @@ inDummies <- function(X, dummies, inDummiesThreshold = 0.05, inDummiesAllValues 
 rmNoise =  function(X, catVariables = NULL, threshold = 0.5, inGame = FALSE, columnOnly = TRUE)
 {
 	n = nrow(X)
-	if (is.null(catVariables))
-	{   catVariables = 1:ncol(X)	}
+	if (is.null(catVariables)) {   catVariables = 1:ncol(X)	}
 	
 	if (inGame)
 	{
@@ -1095,8 +1170,7 @@ rmNoise =  function(X, catVariables = NULL, threshold = 0.5, inGame = FALSE, col
 				for (i in 1:length(idxInf))
 				{	
 					rmIdx = which(X[,j] == as.numeric(names(idxInf[i])))
-					if (length(rmIdx) > 0)
-					{ 	X = X[-rmIdx,]	}
+					if (length(rmIdx) > 0)	{ 	X = X[-rmIdx,]	}
 				}
 			}			
 			n = nrow(X)
@@ -1118,128 +1192,124 @@ rmNoise =  function(X, catVariables = NULL, threshold = 0.5, inGame = FALSE, col
 					for (i in 1:length(idxInf))
 					{	
 						rmIdx = which(X[,j] == as.numeric(names(idxInf[i])))
-						if (length(rmIdx) > 0)
-						{ 	rmIdxAll = c(rmIdxAll, rmIdx)	}
+						if (length(rmIdx) > 0)	{ 	rmIdxAll = c(rmIdxAll, rmIdx)	}
 					}
 				}
 			}			
 		}
 		
-		if (!is.null(rmIdxAll))
-		{ rmIdxAll = unique(rmIdxAll)	}
-		if (columnOnly)
-		{  X = X[,-rmIdxAll] }
-		else
-		{	X = X[-rmIdxAll,]	}
+		if (!is.null(rmIdxAll))	{ rmIdxAll = unique(rmIdxAll)	}
+		if (columnOnly)	{  X = X[,-rmIdxAll] }
+		else {	X = X[-rmIdxAll,]	}
 	}
 	
 	return(X)
 }
 
 
-category2Quantile <- function(X, nQuantile = 20)
-{
-	Z = X
+# category2Quantile <- function(X, nQuantile = 20)
+# {
+	# Z = X
 	
-	for (j in 1:ncol(X))
-	{
-		limQ = min(X[,j])
-		for (i in 1:nQuantile)
-		{	
-			Q = quantile(X[,j], i/nQuantile)
-			Z[which(Z[,j] <= Q & Z[,j] >= limQ), j] = i-1
-			limQ = Q	
-		}
+	# for (j in 1:ncol(X))
+	# {
+		# limQ = min(X[,j])
+		# for (i in 1:nQuantile)
+		# {	
+			# Q = quantile(X[,j], i/nQuantile)
+			# Z[which(Z[,j] <= Q & Z[,j] >= limQ), j] = i-1
+			# limQ = Q	
+		# }
 	
-	}
-	return(Z)
-}
+	# }
+	# return(Z)
+# }
 
-category2Proba <- function(X,Y, whichColumns = NULL, regression = FALSE, threads = "auto")
-{
-	if (is.null(whichColumns)) {  whichColumns = 1:ncol(X) }
-	p = length(whichColumns)
-	n = nrow(X)
-	ghostIdx = 1:n
-	Z = X
+# category2Proba <- function(X,Y, whichColumns = NULL, regression = FALSE, threads = "auto")
+# {
+	# if (is.null(whichColumns)) {  whichColumns = 1:ncol(X) }
+	# p = length(whichColumns)
+	# n = nrow(X)
+	# ghostIdx = 1:n
+	# Z = X
 	
-	for (j in  whichColumns)
-	{
-		XX = cbind(X[,j],ghostIdx)
-		NAIdx = which.is.na(X[,j])
-		if (length(NAIdx) > 0)
-		{	
-			catValues = rmNA(unique(X[-NAIdx,j])) 				
-			for (i in seq_along(catValues))
-			{
-				idx = which(X[-NAIdx,j] == catValues[i])
-				trueIdx = XX[-NAIdx,j][idx]
-				if (!regression)
-				{	Z[trueIdx, j] = max(table(Y[trueIdx]))/length(idx)	}
-				else
-				{	Z[trueIdx, j] = sum(Y[trueIdx])/length(idx) }
-			}
-		}
-		else
-		{
-			catValues = unique(X[,j])
-			for (i in seq_along(catValues))
-			{
-				idx = which(X[,j] == catValues[i])
-				if (!regression)
-				{ 	Z[idx, j]= max(table(Y[idx]))/length(idx)	} #Z[idx ,j]
-				else
-				{	Z[idx,j] = sum(Y[idx])/length(idx) }
-			}
-		}
-	}
-	return(Z)
-}
+	# for (j in  whichColumns)
+	# {
+		# XX = cbind(X[,j],ghostIdx)
+		# NAIdx = which.is.na(X[,j])
+		# if (length(NAIdx) > 0)
+		# {	
+			# catValues = rmNA(unique(X[-NAIdx,j])) 				
+			# for (i in seq_along(catValues))
+			# {
+				# idx = which(X[-NAIdx,j] == catValues[i])
+				# trueIdx = XX[-NAIdx,j][idx]
+				# if (!regression)
+				# {	Z[trueIdx, j] = max(table(Y[trueIdx]))/length(idx)	}
+				# else
+				# {	Z[trueIdx, j] = sum(Y[trueIdx])/length(idx) }
+			# }
+		# }
+		# else
+		# {
+			# catValues = unique(X[,j])
+			# for (i in seq_along(catValues))
+			# {
+				# idx = which(X[,j] == catValues[i])
+				# if (!regression)
+				# { 	Z[idx, j]= max(table(Y[idx]))/length(idx)	} #Z[idx ,j]
+				# else
+				# {	Z[idx,j] = sum(Y[idx])/length(idx) }
+			# }
+		# }
+	# }
+	# return(Z)
+# }
 		
-imputeCategoryForTestData <- function(Xtrain.imputed, Xtrain.original, Xtest, impute = TRUE)
-{
-	Xtest.imputed = matrix(NA, ncol = ncol(Xtrain.imputed), nrow = nrow(Xtest))
-	for (j in 1:ncol(Xtrain.original))
-	{
-		uniqueCat = unique(Xtrain.original[,j])
-		for( i in 1:length(uniqueCat) )
-		{
-			uniqueIdx = which(Xtest[,j] == uniqueCat[i])
+# imputeCategoryForTestData <- function(Xtrain.imputed, Xtrain.original, Xtest, impute = TRUE)
+# {
+	# Xtest.imputed = matrix(NA, ncol = ncol(Xtrain.imputed), nrow = nrow(Xtest))
+	# for (j in 1:ncol(Xtrain.original))
+	# {
+		# uniqueCat = unique(Xtrain.original[,j])
+		# for( i in 1:length(uniqueCat) )
+		# {
+			# uniqueIdx = which(Xtest[,j] == uniqueCat[i])
 			
-			if (length(uniqueIdx) > 0)
-			{
-				uniqueIdx2 = which(Xtrain.original[,j] == uniqueCat[i])[1]
-				Xtest.imputed[uniqueIdx,j] = Xtrain.imputed[uniqueIdx2,j]
-			}
-		}
-	}
+			# if (length(uniqueIdx) > 0)
+			# {
+				# uniqueIdx2 = which(Xtrain.original[,j] == uniqueCat[i])[1]
+				# Xtest.imputed[uniqueIdx,j] = Xtrain.imputed[uniqueIdx2,j]
+			# }
+		# }
+	# }
 	
-	if (impute)
-	{	
-		if (length(which.is.na(Xtest.imputed)) > 0)
-		{	Xtest.imputed = na.impute(Xtest.imputed) }
-	}
+	# if (impute)
+	# {	
+		# if (length(which.is.na(Xtest.imputed)) > 0)
+		# {	Xtest.imputed = na.impute(Xtest.imputed) }
+	# }
 		
-	return(Xtest.imputed)
-}
+	# return(Xtest.imputed)
+# }
 			
-categoryCombination <- function(X, Y, idxBegin = 1, idxtoRemove = NULL)
-{
-	seqCol = (1:ncol(X))[-c(idxBegin, idxtoRemove)]
-	Z = matrix(data = 0, ncol = length(seqCol), nrow = nrow(X))
-	l = 1
-	for (j in seqCol)
-	{
-		matchSameCat = which(X[,idxBegin] == X[,j])
-		if (length(matchSameCat) > 0)
-		{
-			Z[matchSameCat, l] = max(table(rmNA(Y[matchSameCat])))/length(matchSameCat)
-			l = l + 1
-		}
-	}
+# categoryCombination <- function(X, Y, idxBegin = 1, idxtoRemove = NULL)
+# {
+	# seqCol = (1:ncol(X))[-c(idxBegin, idxtoRemove)]
+	# Z = matrix(data = 0, ncol = length(seqCol), nrow = nrow(X))
+	# l = 1
+	# for (j in seqCol)
+	# {
+		# matchSameCat = which(X[,idxBegin] == X[,j])
+		# if (length(matchSameCat) > 0)
+		# {
+			# Z[matchSameCat, l] = max(table(rmNA(Y[matchSameCat])))/length(matchSameCat)
+			# l = l + 1
+		# }
+	# }
 	
-	return(Z)
-}
+	# return(Z)
+# }
 		
 permuteCatValues = function(X, catVariables)
 {
@@ -1348,7 +1418,7 @@ confusion.matrix = function(predY, Y)
 	if (k == 2)
 	{ 	FP = vector(length = length(classes))	}
 	else
-	{ 	FP = matrix( data = NA, ncol = k, nrow = k ) } 
+	{ 	FP = matrix( data = 0, ncol = k, nrow = k ) } 
 	
 	for (i in 1:k)
 	{
@@ -1514,7 +1584,7 @@ roc.curve <- function(X, Y, classes, positive = classes[2], ranking.threshold = 
 	
 	if (n_pos.idx == 0)
 	{
-		cat("No positive case found.\n")
+		cat("\nNo positive case found.\n")
 		return(list(cost = 0, threshold = ranking.threshold, accuracy = 0, expected.matches = 0))
 	}
 	else
@@ -1787,8 +1857,10 @@ someErrorType = function(modelPrediction, Y, generic = TRUE, regression = FALSE)
 gMean <- function(confusionMatrix, precision = FALSE)  
 {
 	p = ncol(confusionMatrix)
-	if (precision) {  acc = diag(confusionMatrix[,-p])/rowSums(confusionMatrix[,-p])}
-	else { acc = diag(confusionMatrix[,-p])/colSums(confusionMatrix[,-p])  }
+	if (precision) 	{  acc = rmNA(diag(confusionMatrix[,-p])/rowSums(confusionMatrix[,-p])) }	
+	else { 	acc = diag(confusionMatrix[,-p])/colSums(confusionMatrix[,-p])  }
+	idx = which(acc == 0)
+	if (length(idx) > 0) { acc = acc[-idx]	}
 	nbAcc = length(acc)
 	return( (prod(acc))^(1/nbAcc))
 }
@@ -1806,8 +1878,9 @@ expectedSquaredBias <- function(Y, Ypred)  (mean(Y - mean(Ypred)))^2
 
 randomWhichMax <- function(X)
 {
+    set.seed(sample(1e9,1))
 	Y = seq_along(X)[X == max(X)]
-	if (length(Y) == 1) { Y } else { sample(Y,1) } 
+    if (length(Y) == 1) { Y } else  { sample(Y,1) } 
 }
 	
 # import
@@ -1942,66 +2015,65 @@ HuberDist <- function(Y, Y_, a = abs(median(Y - Y_)))  sum(ifelse( abs(Y - Y_) <
 
 pseudoHuberDist <- function(Y, Y_, a = abs(median(Y - Y_))) sum(a^2*(sqrt(1 + ((Y - Y_)/a)^2) - 1))
 
-ndcg <- function(estimatedRelevanceScoresNames, trueRelevanceScoresNames, predictionsMatrix, idx = 1:nrow(predictionsMatrix)) 
-{
-	scores = sortMatrix(predictionsMatrix[idx,], trueRelevanceScoresNames, decrease = TRUE)
-	estimatedRelevanceRanks = sortMatrix(predictionsMatrix[idx,], "rank")
-	trueRelevanceScores = scores[,trueRelevanceScoresNames]
-	scoreIdx = match(scores[,estimatedRelevanceScoresNames], estimatedRelevanceRanks[,estimatedRelevanceScoresNames]) 
-	estimatedRelevanceScores = estimatedRelevanceRanks[ scoreIdx,"majority vote"]
-	zeros = which(trueRelevanceScores == 0)
-	if (length(zeros) > 0)
-	{ estimatedRelevanceScores[zeros] = 0 }
-	estimatedRelevanceScores = sortMatrix(cbind(scoreIdx, estimatedRelevanceScores),1)[,2]
+# ndcg <- function(estimatedRelevanceScoresNames, trueRelevanceScoresNames, predictionsMatrix, idx = 1:nrow(predictionsMatrix)) 
+# {
+	# scores = sortMatrix(predictionsMatrix[idx,], trueRelevanceScoresNames, decrease = TRUE)
+	# estimatedRelevanceRanks = sortMatrix(predictionsMatrix[idx,], "rank")
+	# trueRelevanceScores = scores[,trueRelevanceScoresNames]
+	# scoreIdx = match(scores[,estimatedRelevanceScoresNames], estimatedRelevanceRanks[,estimatedRelevanceScoresNames]) 
+	# estimatedRelevanceScores = estimatedRelevanceRanks[ scoreIdx,"majority vote"]
+	# zeros = which(trueRelevanceScores == 0)
+	# if (length(zeros) > 0)
+	# { estimatedRelevanceScores[zeros] = 0 }
+	# estimatedRelevanceScores = sortMatrix(cbind(scoreIdx, estimatedRelevanceScores),1)[,2]
   
-	limitOverEstimation = which(trueRelevanceScores > 0)
-	if (length(limitOverEstimation) > 0)
-	{	
-		estimatedRelevanceScores[scoreIdx[limitOverEstimation]] = min(estimatedRelevanceScores[scoreIdx[limitOverEstimation]], 
-		trueRelevanceScores[limitOverEstimation])
-	}
+	# limitOverEstimation = which(trueRelevanceScores > 0)
+	# if (length(limitOverEstimation) > 0)
+	# {	
+		# estimatedRelevanceScores[scoreIdx[limitOverEstimation]] = min(estimatedRelevanceScores[scoreIdx[limitOverEstimation]], 
+		# trueRelevanceScores[limitOverEstimation])
+	# }
      
-	DCG <- function(y) sum( (2^y - 1)/log(1:length(y) + 1, base = 2) ) #y[1] + sum(y[-1]/log(2:length(y), base = 2))
+	# DCG <- function(y) sum( (2^y - 1)/log(1:length(y) + 1, base = 2) ) #y[1] + sum(y[-1]/log(2:length(y), base = 2))
  
-	DCGTrueScore = DCG(trueRelevanceScores)
-	DCGScore = DCG(estimatedRelevanceScores)
-	if (DCGTrueScore == 0)
-	{ return (-1)  }
-	else
-	{	 return(DCGScore/DCGTrueScore) }
-}
+	# DCGTrueScore = DCG(trueRelevanceScores)
+	# DCGScore = DCG(estimatedRelevanceScores)
+	# if (DCGTrueScore == 0)
+	# { return (-1)  }
+	# else
+	# {	 return(DCGScore/DCGTrueScore) }
+# }
 
-fullNDCG <- function(estimatedRelevanceScoresNames, trueRelevanceScoresNames, predictionsMatrix, idx = 1:nrow(predictionsMatrix), filterNoOrder = TRUE)
-{
-	if (is.null(idx))
-	{ stop("Please use ndcg() function. fullNDCG needs index of ID to rank scores.") }
+# fullNDCG <- function(estimatedRelevanceScoresNames, trueRelevanceScoresNames, predictionsMatrix, idx = 1:nrow(predictionsMatrix), filterNoOrder = TRUE)
+# {
+	# if (is.null(idx))
+	# { stop("Please use ndcg() function. fullNDCG needs index of ID to rank scores.") }
 	
-	cases = sort(unique(idx))
-	scores = vector(length = length(cases))
-	for (i in 1:length(cases))
-	{
-		subCases = which(idx == cases[i])
-		scores[i] <- ndcg(estimatedRelevanceScoresNames, trueRelevanceScoresNames, predictionsMatrix, idx = subCases)
-	}
+	# cases = sort(unique(idx))
+	# scores = vector(length = length(cases))
+	# for (i in 1:length(cases))
+	# {
+		# subCases = which(idx == cases[i])
+		# scores[i] <- ndcg(estimatedRelevanceScoresNames, trueRelevanceScoresNames, predictionsMatrix, idx = subCases)
+	# }
 
-	if (filterNoOrder)
-	{ scores[scores == -1] == 1	}
+	# if (filterNoOrder)
+	# { scores[scores == -1] == 1	}
 	
-	return(scores)
-}
+	# return(scores)
+# }
 	
 randomize = function(X)  sample(1:nrow(X), nrow(X))
 
 # Bayesian bootstrap
-sampleDirichlet <- function(X)
-{
-	# dirichlet = gamma / sum (gamma)
-	gamma.sample = rgamma(ncol(X),1)
-	dirichlet.sample = gamma.sample/sum(gamma.sample) 
-	R.x =  apply(X, 2,  function(Z) c(max(Z),min(Z)))
+# sampleDirichlet <- function(X)
+# {
+	# gamma.sample = rgamma(ncol(X),1)
+	# dirichlet.sample = gamma.sample/sum(gamma.sample) 
+	# R.x =  apply(X, 2,  function(Z) c(max(Z),min(Z)))
 	
-	return(-diff(R.x)*dirichlet.sample + R.x[2,])
-}
+	# return(-diff(R.x)*dirichlet.sample + R.x[2,])
+# }
 
 #some colors
 #require(grDevices)
@@ -2276,13 +2348,14 @@ rm.tempdir <- function()
 model.stats <- function(predictions, responses, regression = FALSE)
 {
     #require(pROC)
+	graphics.off()
 	cat("\nTest set")
 	if (is.factor(predictions) | !regression)
 	{
 		uniqueResponses = sort(unique(responses))
 		if (!is.factor(responses)) { responses = as.factor(responses) }
 		confMat = confusion.matrix(as.numeric(predictions), as.numeric(responses))
-		rownames(confMat) = unique(responses)
+		rownames(confMat) = uniqueResponses
 		colnames(confMat)[-ncol(confMat)] = rownames(confMat)
 		cat("\nError rate: ")
 		cat(round(100*generalization.error(confMat), 2), "%\n", sep="")
@@ -2320,4 +2393,173 @@ model.stats <- function(predictions, responses, regression = FALSE)
 	}
 }
 
+generic.cv <- function(X, Y, nTimes = 1, k = 10, seed = 2014, regression = TRUE, genericAlgo = NULL, specificPredictFunction = NULL, 
+			  metrics = c("none", "AUC", "precision", "F-score", "L1", "geometric mean", "geometric mean (precision)"))
+{
+	set.seed(seed)
+	s = 1
+	testError = metricValues = vector()
+	n = nrow(X)
+	for (i in 1:nTimes)
+	{
+		# randomize data
+		train_test = sample(n, n)
+		# divide data in k folds
+		foldsIdx = cut(train_test, k, labels = FALSE)
+		
+		# for each fold (the number 'j'), choose it as a test set 
+		# and choose all the others as the training se
+		for (j in 1:k)
+		{
+			# all folds minus the j-th
+			trainIdx = which(foldsIdx != j)			
+			X1 = X[trainIdx,]
+			Y1 = Y[trainIdx]
+			
+			testIdx = which(foldsIdx == j)
+			X2 = X[testIdx,]
+			Y2 = Y[testIdx]
+									 
+			# train and test samples are always converted to an R matrix
+			# if classification a factor will be needed
+			if (!regression) { Y1 = as.factor(Y1) }
+			
+			# R fill find genericAlgo() from the global environment
+			if (is.null(genericAlgo))
+			{ 
+				stop("Please provide a wrapper for the algorithm needed to be assessed. For example, if randomForest is needed\n just write : 'genericAlgo <- function(X, Y) randomForest(X, Y)'\n Then, use the option 'genericAlgo = genericAlgo' in generic.cv() function\n")
+			}
+			else
+			{	model = genericAlgo(X1, Y1)	}
+			
+			# some algorithms like gbm or glmnet require specific arguments
+			# for the predict function. One has to create 
+			# a specific predict function for them
+			if (is.null(specificPredictFunction))
+			{ 	predictions = predict(model, X2)	}
+			else
+			{  predictions = try(specificPredictFunction(model, X2)) }
+			
+			if (regression)
+			{	
+				testError[s] = sum((predictions - Y2)^2)/length(Y2)	
+			
+				if (metrics[1] == "L1") {  metricValues[s] =  sum(abs(predictions - Y2))/length(Y2)	}
+			
+			}
+			else
+			{	
+				testError[s] = sum(as.factor(predictions) != as.factor(Y2))/length(Y2)	
+				
+				confMat = confusion.matrix(as.factor(predictions), as.factor(Y2))
+				if (length(unique(Y2)) == 2)
+				{	
+					if (metrics[1] == "AUC") {  metricValues[s] = pROC::auc(as.numeric(Y2), as.numeric(predictions)) }				
+					if (metrics[1] == "precision") 	{ 	metricValues[s] = confMat[2,2]/sum(confMat[2,]) 	}				
+					if (metrics[1] == "F-score")  	{   metricValues[s] = round(fScore(confMat),4)	}
+				}
+				else 
+				{  
+					if (metrics[1] == "geometric mean") {   metricValues[s] = round(gMean(confMat),4)	}
+					if (metrics[1] == "geometric mean (precision)") {   metricValues[s] = round(gMean(confMat, precision = TRUE),4)	}
+				}
+			}
+			s = s + 1
+		}
+	}
+	
+	if (metrics[1] == "none") {  return(list(testError = testError, avgError = mean(testError), stdDev = sd(testError)) ) }
+	else {  return(list(testError = testError, avgError = mean(testError), stdDev = sd(testError), metric = metricValues) ) }
+}
+
+filterOutliers <- function(X, quantileValue, direction = c("low", "high")) if (direction == "low") { X[X < quantileValue] } else { X[X > quantileValue]  }
+
+
+which.is.nearestCenter <- function(X, Y)
+{
+	n = nrow(X)
+	K = nrow(Y)
+	distToY = matrix(NA, n, K)
+	for (k in 1:K)
+	{	
+		distToY[,k] = apply(X, 1, function(Z) L2Dist(Z, Y[k,]))	
+	}
+	
+	return(apply(distToY, 1, which.min))
+}
+
+variance <- function(X)  (length(X)-1)/length(X)*var(X) 
+ 
+interClassesVariance <- function(X, classes) 
+{        
+	m <- tapply(X, classes, mean) 
+	l <- tapply(X, classes, length)
+	return( sum(l* ( m - mean(X) )^2/length(X)) )
+} 
+ 
+intraClassesVariance <- function(X, classes) 
+{        
+	v <- tapply(X, classes, variance) 
+	v[is.na(v)] <- 0 
+	l <- tapply(X, classes,length) 
+	return( sum(l*v/length(X)) )
+}
+
+ mergeOutliers <- function(object)
+{
+	Z = object$unsupervisedModel$cluster
+	if (!is.null(object$unsupervisedModel$clusterOutliers))
+	{ Z = c(Z, object$unsupervisedModel$clusterOutliers)	}			
+	Z = sortDataframe( data.frame(Z, as.numeric(names(Z))), 2)
+	return(Z[,1])
+}
+
+splitVarCore <- function(X, nsplit, lengthOfEachSplit)
+{
+	X = as.character(X)
+	charLength = nchar(X[1])
+	XX = matrix(NA, length(X), nsplit)
+	k = 1
+	for (j in 1:nsplit)
+	{
+		for (i in 1:length(X))
+		{	XX[i,j] = substr(X[i], k,(k + lengthOfEachSplit[j] - 1)) }
+		k = k + lengthOfEachSplit[j] 	
+	}
+
+	XX  = fillVariablesNames(XX)
+	return(XX)
+}
+
+timeStampCore <- function(stamp, n = NULL, begin = 0, end = NULL, windowLength = NULL)
+{
+	if (is.null(n)) { stop("Please provide 'n', the length of the sample.\n") }
+	Z = vector(length = n)
+	if (!is.null(end))
+	{ Z = seq(begin, end, by = stamp)   }
+	else
+	{	
+		if (!is.null(windowLength))
+		{
+			K = floor(windowLength/stamp)
+			s = 1
+			Z[1] = begin
+			Z[1:(s + K-1)] = cumsum(c(Z[1], rep(stamp, K-1)))
+			s = s + K 
+			for (k in 2:(floor(n/K)))
+			{
+				Z[s:(s + K-1)] = cumsum(rep(stamp, K))			
+				s = s + K 
+			}
+			if (s < n)
+			{	
+				gapLength = n - s + 1
+				Z[s:n] = cumsum(rep(stamp, gapLength))				
+			}
+		}
+		else
+		{ stop("Please provide either a 'end' value or a 'windowLength' one.\n") }
+	}
+	return(Z)	
+}	
 # END OF FILE

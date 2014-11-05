@@ -1,4 +1,35 @@
-Changes in 1.0.8 :
+Changes in 1.0.9 - 1.1.x :
+
+1 - Cut-points of each node are now chosen between two random points of each candidate variable. Previously, the whole support was chosen.
+This update on the optimization criterion leads to faster computation while not changing accuracy. 
+
+2 - Introduction of unsupervised learning using the following chain commands paradigm:
+pre-processing (following Breiman's ideas) + randomUniformForest proximities matrix +  Multidimensional scaling + gap statistics (for estimating the number of clusters) + kmeans (for identifying every observation)
+Unsupervised learning introduces then many concepts that still need to be properly referenced. 
+Note that implementation for large datasets is currently not integrated.
+
+3 - model.stats() and generic.cv()  are now documented and bugs fixed.
+model.stats() function displays many informations (confusion matrix, ROC curves, residuals,...) for any vector
+of predictions and responses. generic.cv() function proceeds to a k-fold cross-validation for any algorithm (with however some manual code).
+
+4 - Better matching of NA Values and comments to allow the right choice of imputation when predicting data with missing values.
+
+5 - Improvements in speed and accuracy when using one (or both) of the options 'depth' or 'depthcontrol'.
+Especially for large files (> 100 000 rows), increase both speed and accuracy when using the rUniformForest.big() function.
+Note that the latter splits data in chunks, therefore one can not reach the accuracy of an (or the same) algorithm using the whole sample.
+
+6 - Variable importance bug corrected for rUniformForest.big() function.
+
+7 - Variable importance bug corrected when using formula in randomUniformForest() function.
+
+8 - Improvements in speed, especially for large samples (> 50 000 rows) and high dimension (> 100 variables) in the regression case.
+More precisely, large datasets take most of the benefits of optimizations added.
+
+9 - Improvements in the accuracy of variable importance
+
+10 - Minor bugs corrected
+
+Changes in 1.0.7 - 1.0.8 :
 
 1- Full support of categorical variables.
 They were formerly matched by the same function than continuous ones, leading to some troubles in Variable importance and a loss of accuracy.

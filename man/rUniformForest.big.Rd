@@ -31,7 +31,8 @@ rUniformForest.big(X, Y = NULL,
     importance = TRUE,	
 	bagging = FALSE,
 	unsupervised = FALSE,
-	proximities = FALSE,
+	unsupervisedMethod = c("uniform univariate sampling", 
+	"uniform multivariate sampling", "with bootstrap"),
 	classwt = NULL,	
 	oversampling = 0,
 	targetclass = -1,
@@ -121,7 +122,7 @@ rUniformForest.big(X, Y = NULL,
 	\item{unsupervised}{
 	    see \code{\link{randomUniformForest}}.
 	}
-	\item{proximities}{
+	\item{unsupervisedMethod}{
 	    see \code{\link{randomUniformForest}}.
 	}
 	\item{classwt}{

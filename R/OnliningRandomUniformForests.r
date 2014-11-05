@@ -103,14 +103,14 @@ onlineCombineRUF <- function(rufObject1, rufObject2)
 		}		
 		if (!rufObject.0$regression)
 		{
-			var.imp.output = cbind(score, classEstimate, classFrequency, round(100*score/max(score),2), floor(100*score/sum(score)))
+			var.imp.output = cbind(score, classEstimate, classFrequency, round(100*score/max(score),2), round(100*score/sum(score),0))
 			var.imp.output =  data.frame(tmp.var.imp.names, var.imp.output)
 			var.imp.output = var.imp.output[order(var.imp.output[,2], decreasing = TRUE),]					
 			colnames(var.imp.output) = c("variables", "score", "class", "class.frequency", "percent", "percent.importance")
 		}
 		else
 		{
-			var.imp.output = cbind(score,  round(100*score/max(score),2), floor(100*score/sum(score)))
+			var.imp.output = cbind(score,  round(100*score/max(score),2), round(100*score/sum(score),0))
 			var.imp.output =  data.frame(tmp.var.imp.names, var.imp.output)
 			var.imp.output = var.imp.output[order(var.imp.output[,2], decreasing = TRUE),]					
 			colnames(var.imp.output) = c("variables", "score", "percent", "percent.importance")
@@ -140,8 +140,8 @@ rUniformForest.big <- function(X, Y = NULL, xtest = NULL, ytest = NULL, nforest 
     depthcontrol = NULL,
     importance = TRUE,	
 	bagging = FALSE,
-	unsupervised = FALSE,
-	proximities = FALSE,
+	unsupervised = FALSE, 
+	unsupervisedMethod = c("uniform univariate sampling", "uniform multivariate sampling", "with bootstrap"),
 	classwt = NULL,	
 	oversampling = 0,
 	targetclass = -1,
@@ -157,20 +157,27 @@ rUniformForest.big <- function(X, Y = NULL, xtest = NULL, ytest = NULL, nforest 
 	threads = "auto",
 	parallelpackage = "doParallel" )
 {	
-	
-	if ((nrow(X)/nforest < 50) & !reduceDimension & !reduceAll)
-	{ stop("Too small size to achieve efficiency in learning")	}
+	if ((nrow(X)/nforest < 50) & !reduceDimension & !reduceAll) { stop("Too small size to achieve efficiency in learning")	}
 	X <- fillVariablesNames(X)
-    getFactors <- which.is.factor(X, count = TRUE) 	
-	if (is.data.frame(X)) 
+	if (is.null(Y)) 
 	{ 
-		cat("X is a dataframe. String or factors have been converted to numeric values.\n") 
-		X <- NAfactor2matrix(X)	
-	}
-	categoricalvariablesidx
+		cat("Enter in unsupervised learning.\n")
+		if (unsupervisedMethod[1] == "with bootstrap")
+		{ 
+			cat("'with bootstrap' is only needed as the second argument of 'method' option. Default option will be computed.\n")
+			unsupervisedMethod[1] = "uniform univariate sampling"
+		}
+		XY <- unsupervised2supervised(X, method = unsupervisedMethod[1], bootstrap = if (length(unsupervisedMethod) > 1) { TRUE } else {FALSE })
+		X = XY$X
+		Y = as.factor(XY$Y)
+		unsupervised = TRUE
+	}	
+    getFactors <- which.is.factor(X, count = TRUE) 	
+	if (is.data.frame(X)) {  cat("X is a dataframe. String or factors have been converted to numeric values.\n")  }
+	X <- NAfactor2matrix(X)	
 	if (randomCut)
 	{
-		set.seed(sample(100000,1))
+		set.seed(sample(1e9,1))
 		n = nrow(X)
 		newIdx = sample(n,n)
 		X = X[newIdx,]
@@ -178,54 +185,10 @@ rUniformForest.big <- function(X, Y = NULL, xtest = NULL, ytest = NULL, nforest 
 	}
 	if ( length(which( (X == Inf) | (X == -Inf) ) ) > 0) 
 	{ stop("Inf or -Inf values found in data. Learning can not be done.\nPlease replace them with NA in order to learn") }
-	NAInputs = which(is.na(X), arr.ind = TRUE)[,1]
-	matchNA = (length(NAInputs) > 0)
-	if ( (length(NAInputs) > (nrow(X) - 30)) & (na.action[1] == "omit") )
-	{ stop("too much missing values in data.") }
-	if (!regression & !is.factor(Y) ) { Y = as.factor(Y) }
-	NALabels = which(is.na(Y))
-	matchNALabels = (length(NALabels) > 0)
-	if ( (length(NALabels) > (length(Y) - 30)) & (na.action[1] == "omit") )	{ stop("too much missing values in responses.") }
-	if (matchNA | matchNALabels)
-	{
-		if (!is.null(Y))
-		{
-			newY = as.vector(NAfactor2matrix(matrix(as.numeric(Y))))
-			if (na.action[1] != "omit") 
-			{ 
-				cat("NA found in data. Imputation (fast or accurate, depending on option) is used for missing values. It is strongly recommended to impute values outside modelling, using one of many available models.\n")
-				XY <- na.impute(cbind(X, newY), type = na.action[1])
-				newY <- XY[,ncol(X)+1]
-				X <- XY[,-(ncol(X)+1)]
-				rm(XY)
-				if (is.factor(Y) & matchNALabels)
-				{	
-					levelsY = levels(Y)
-					Y[NALabels] = levelsY[newY[NALabels]]
-				}
-			}
-			else
-			{
-				if (matchNALabels & matchNA) {	rmRows = unique(c(NAInputs, NALabels))	}
-				else
-				{
-					if (matchNA) {	rmRows = unique(NAInputs)	}
-					if (matchNALabels) 	{	rmRows = unique(NALabels)	}
-				}
-				X = X[-rmRows,]
-				Y = Y[-rmRows]
-			}
-		}
-		else
-		{
-			cat("If accuracy is neeeded, it is strongly recommended to impute values outside modelling, using one of many available models.\n")
-			if (na.action[1] != "omit") { 	X <- na.impute(X, type = na.action[1])	}
-			else
-			{		
-				if (matchNA) { X <- X[-NAInputs,] 	}		
-			}
-		}
-	}
+	XY <- NATreatment(X, Y, na.action = na.action, regression = regression)
+	X  <- XY$X
+	Y  <- XY$Y
+	rm(XY)
 	if (randomcombination[1] > 0)
 	{ 
 		randomcombinationString = randomcombination[1]
@@ -313,7 +276,18 @@ rUniformForest.big <- function(X, Y = NULL, xtest = NULL, ytest = NULL, nforest 
 	}	
 	if (!is.null(Y)) { 	RUFObject$y = Y	 }
 	if (!is.null(categoricalvariablesidx ))
-	{  RUFObject$categoricalvariables = categoricalvariablesidx } 
+	{  RUFObject$categoricalvariables = categoricalvariablesidx }
+	if (unsupervised) 
+	{ 
+		RUFObject$unsupervised = TRUE 
+		RUFObject$unsupervisedMethod  = if (length(unsupervisedMethod) == 3) 
+										{ unsupervisedMethod[1] } 
+										else 
+										{ 
+											if (length(unsupervisedMethod) == 1) { unsupervisedMethod } 
+											else { unsupervisedMethod[1:2] } 
+										}
+	}
 	RUFObject$call <- match.call()
 	class(RUFObject) <- "randomUniformForest"	
 	RUFObject
@@ -440,7 +414,7 @@ rUniformForest.merge <- function(X = NULL, Y = NULL, xtest = NULL, ytest = NULL,
 	bagging = FALSE,
 	classwt = NULL,	
 	unsupervised = FALSE, 
-	proximities = FALSE,	
+	unsupervisedMethod = c("uniform univariate sampling", "uniform multivariate sampling", "with bootstrap"),	
 	oversampling = 0,
 	targetclass = -1,
 	outputperturbationsampling = FALSE,
@@ -490,58 +464,10 @@ rUniformForest.merge <- function(X = NULL, Y = NULL, xtest = NULL, ytest = NULL,
 			}
 			if ( length(which( (X == Inf) | (X == -Inf) ) ) > 0) 
 			{ stop("Inf or -Inf values found in data. Learning can not be done.\nPlease replace them with NA in order to learn") }
-			NAInputs = which(is.na(X), arr.ind = TRUE)[,1]
-			matchNA = (length(NAInputs) > 0)
-			NALabels = which(is.na(Y))
-			matchNALabels = (length(NALabels) > 0)
-			if (matchNA | matchNALabels)
-			{	
-				if (!is.null(Y))
-				{
-					newY = as.vector(NAfactor2matrix(matrix(Y)))
-					if (na.action[1] == "na.impute") 
-					{ 
-						cat("NA found in data. Rough imputation is done.\n")
-						XY <- na.impute(cbind(X, newY))
-						newY <- XY[,ncol(X)+1]
-						X <- XY[,-(ncol(X)+1)]
-						rm(XY)						
-						if (is.factor(Y))
-						{	
-							levelsY = levels(Y)
-							Y[NALabels] = levelsY[newY[NALabels]]
-						}
-					}
-					else
-					{
-						if (matchNALabels & matchNA)
-						{	rmRows = unique(c(NAInputs, NALabels))	}
-						else
-						{
-							if (matchNA)
-							{	rmRows = unique(NAInputs)	}
-							
-							if (matchNALabels)
-							{	rmRows = unique(NALabels)	}
-						}
-						
-						X = X[-rmRows,]
-						Y = Y[-rmRows]
-					}
-				}
-				else
-				{
-					if (na.action[1] == "na.impute") 
-					{ 	X <- na.impute(X)	}
-					else
-					{		
-						if (matchNA)
-						{
-							X <- X[-NAInputs,]
-						}		
-					}
-				}	
-			}
+			XY <- NATreatment(X, Y, na.action = na.action, regression = regression)
+			X  <- XY$X
+			Y  <- XY$Y
+			rm(XY)
 			if (randomcombination[1] > 0)
 			{ 
 				randomcombinationString = randomcombination[1]
@@ -791,8 +717,8 @@ rUniformForest.grow <- function(object, X, Y = NULL, ntree = 100, threads = "aut
 				subsamplerate = as.numeric(as.character(paramsObject["subsamplerate",1])),
 				importance = as.logical(as.character(paramsObject["importance",1])),
 				bagging = ifelse(bagging, TRUE, FALSE),
-				unsupervised = FALSE, 
-				proximities = FALSE,
+				unsupervised = if (is.null(object$unsupervised)) { FALSE } else { TRUE }, 
+				unsupervisedMethod = if (is.null(object$unsupervised)) { unsupervisedMethod = c("uniform univariate sampling", "uniform multivariate sampling", "with bootstrap") } else { object$unsupervisedMethod },
 				classwt = if (as.character(paramsObject["classwt", 1]) == "FALSE") { NULL } 
 					else {  as.numeric(strsplit(as.character(paramsObject["classwt", 1]),",")[[1]]) },
 				oversampling = if (as.character(paramsObject["oversampling", 1]) == "FALSE") { 0 } 
@@ -835,13 +761,15 @@ rUniformForest.grow <- function(object, X, Y = NULL, ntree = 100, threads = "aut
 				nodesize = as.numeric(as.character(paramsObject["nodesize",1])),
 				maxnodes = as.numeric(as.character(paramsObject["maxnodes",1])),
 				depth = as.numeric(as.character(paramsObject["depth",1])),
-				depthcontrol = if (is.logical(as.logical(as.character(paramsObject["depthcontrol",1])))) {  NULL } 
-					else 
-					{ 
-						if (is.numeric(as.character(paramsObject["depthcontrol",1]))) 
-						{	 as.numeric(as.character(paramsObject["depthcontrol",1])) }
-						else { "random" }
-					},
+				depthcontrol = 	if (is.logical(as.logical(as.character(paramsObject["depthcontrol",1])))) 
+								{  NULL } 
+								else 
+								{ 
+									if (is.numeric(as.character(paramsObject["depthcontrol",1])))
+									{  as.numeric(as.character(paramsObject["depthcontrol",1])) }
+									else 
+									{ "random" }
+								},
 				regression = object$forest$regression,
 				replace = as.logical(as.character(paramsObject["replace",1])),
 				OOB = as.logical(as.character(paramsObject["OOB",1])),
@@ -849,36 +777,39 @@ rUniformForest.grow <- function(object, X, Y = NULL, ntree = 100, threads = "aut
 				subsamplerate = as.numeric(as.character(paramsObject["subsamplerate",1])),
 				importance = as.logical(as.character(paramsObject["importance",1])),
 				bagging = ifelse(bagging, TRUE, FALSE),
-				unsupervised = FALSE, 
-				proximities = FALSE,
+				unsupervised = if (is.null(object$unsupervised)) { FALSE } else { TRUE }, 
+				unsupervisedMethod = if (is.null(object$unsupervised)) { unsupervisedMethod = c("uniform univariate sampling", "uniform multivariate sampling", "with bootstrap") } else { object$unsupervisedMethod },
 				classwt = if (as.character(paramsObject["classwt", 1]) == "FALSE") { NULL } 
-					else {  as.numeric(strsplit(as.character(paramsObject["classwt", 1]),",")[[1]]) },
+						else {  as.numeric(strsplit(as.character(paramsObject["classwt", 1]),",")[[1]]) },
 				oversampling = if (as.character(paramsObject["oversampling", 1]) == "FALSE") { 0 } 
-					else { as.numeric(as.character(paramsObject["oversampling", 1])) },
+							else { as.numeric(as.character(paramsObject["oversampling", 1])) },
 				targetclass = as.numeric(as.character(paramsObject["targetclass", 1])),
-				outputperturbationsampling = if (as.character(paramsObject["outputperturbationsampling", 1]) == "FALSE") { FALSE } else { TRUE },
+				outputperturbationsampling = if (as.character(paramsObject["outputperturbationsampling", 1]) == "FALSE") { FALSE } 
+											 else { TRUE },
 				rebalancedsampling = if (as.character(paramsObject["rebalancedsampling", 1]) == "FALSE") 
-					{ as.logical(as.character(paramsObject["rebalancedsampling", 1])) } 
-					else 
-					{ 
-						if (length(paramsObject["rebalancedsampling", 1]) > 1)	{  as.numeric(as.character(paramsObject["rebalancedsampling", 1])) }
-						else {  TRUE }
-					},
-				featureselectionrule = if (object$forest$regression) 
-									   {	
+									{ as.logical(as.character(paramsObject["rebalancedsampling", 1])) } 
+									else 
+									{ 
+										if (length(paramsObject["rebalancedsampling", 1]) > 1)	
+										{  as.numeric(as.character(paramsObject["rebalancedsampling", 1])) }
+										else 
+										{  TRUE }
+									},
+				featureselectionrule = 	if (object$forest$regression) 
+										{	
 											if (as.character(paramsObject["featureselectionrule", 1]) != "Sum of squared residuals" ) 
 											{  "L1"  }
 											else
 											{ "L2"  }
-									   }
-									   else
-									   {	as.character(paramsObject["featureselectionrule", 1])	},		
+										}
+										else
+										{	as.character(paramsObject["featureselectionrule", 1])	},		
 				randomcombination = if (as.character(paramsObject["randomcombination", 1]) == "FALSE") { 0 } 
-					else {	as.numeric(strsplit(as.character(paramsObject["randomcombination", 1]),",")[[1]]) },
+									else {	as.numeric(strsplit(as.character(paramsObject["randomcombination", 1]),",")[[1]]) },
 				randomfeature = if (as.character(paramsObject["randomfeature", 1]) == "FALSE") { FALSE } 
-					else { TRUE },
+								else { TRUE },
 				categoricalvariablesidx = if (as.character(paramsObject["categorical variables", 1]) == "FALSE") { NULL } 
-					else { object$categoricalvariables },
+										  else { object$categoricalvariables },
 				na.action = na.action,
 				logX = object$forest$logX,			
 				classcutoff = classcutoff,
@@ -893,7 +824,8 @@ rUniformForest.grow <- function(object, X, Y = NULL, ntree = 100, threads = "aut
 	return(objectCombined)
 }
 
-rm.trees <- function(rufObject, X = NULL, Y = NULL, method = c("default", "random", "oldest", "newest", "optimal", "quantile"), 
+rm.trees <- function(rufObject, X = NULL, Y = NULL, 
+	method = c("default", "random", "oldest", "newest", "optimal", "quantile"), 
 	howMany = NULL, 
 	rm.sample = 0.1)
 {	

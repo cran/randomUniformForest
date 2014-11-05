@@ -61,7 +61,7 @@
   \item{confInt }{for regression only. Matrix where each row is an observation and each column one of the prediction interval bounds. }
   \item{quantile }{for regression only. Vector of predicted quantiles for 'conf' (value of the option) level of confidence.}
   \item{ranking }{a matrix or data frame. Description will be updated soon.}
-  \item{truemajority }{predicted values, using raw outputs of trees (not majority vote). This option make sense if one set 'nodesize' option greater than 1. Hence, aggregation is participative (at the leaf level) and not representative (at the tree level).}
+  \item{truemajority }{predicted values, using raw outputs of trees (not majority vote). This option makes sense if one set 'nodesize' option greater than 1. Hence, aggregation is participative (at the leaf level) and not representative (at the tree level).}
   \item{all }{raw outputs of the model. Not useful, unless further computation is needed, for example in case of Post-processing.}
 }
 
@@ -70,7 +70,7 @@
 }
 
 \seealso{
- \code{\link{postProcessingVotes}}, \code{\link{bCI}}
+ \code{\link{postProcessingVotes}}, \code{\link{bCI}}, \code{\link{model.stats}}  
 }
 
 \examples{
