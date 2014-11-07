@@ -1,10 +1,23 @@
+Changes in 1.1.0
+
+1- New method used to choose cut-points lead to loss of accuracy for low values of 'mtry' and in the unsupervised case. 
+Cut-points choice has been changed in order to separate classification, unsupervised mode and regression. 
+In Regression and unsupervised learning, cut-points are chosen using the whole support of each candidate variable, 
+as in initial release and prior to the 1.0.9 one. In Classification, the support is now reduced to two random points 
+chosen among a small number. This lead to more diversity in trees. 
+
+2 - Categorical variables were not correctly matched when one was using 'categoricalvariablesidx' option.
+
+3 - Better handling of categorical variables when assessing partial dependencies.
+
 Changes in 1.0.9 - 1.1.x :
 
 1 - Cut-points of each node are now chosen between two random points of each candidate variable. Previously, the whole support was chosen.
 This update on the optimization criterion leads to faster computation while not changing accuracy. 
 
 2 - Introduction of unsupervised learning using the following chain commands paradigm:
-pre-processing (following Breiman's ideas) + randomUniformForest proximities matrix +  Multidimensional scaling + gap statistics (for estimating the number of clusters) + kmeans (for identifying every observation)
+pre-processing (following Breiman's ideas) + randomUniformForest proximities matrix +  Multidimensional scaling + 
+gap statistics (for estimating the number of clusters) + kmeans (for identifying every observation)
 Unsupervised learning introduces then many concepts that still need to be properly referenced. 
 Note that implementation for large datasets is currently not integrated.
 

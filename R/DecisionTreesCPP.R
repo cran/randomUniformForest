@@ -150,7 +150,8 @@ x.bagging = FALSE,
 random.combination = 0,
 randomFeature = FALSE, 
 treeCatVariables = NULL,
-outputPerturbation = FALSE) 
+outputPerturbation = FALSE, 
+unsupervised = FALSE) 
 {
 	{
 		set.seed(sample(1e9,1))
@@ -177,8 +178,7 @@ outputPerturbation = FALSE)
 			treeOverSampling = 0 			 
 		}
 		object.filtered <- options.filter(X, Y, nodeMinSize, o.bootstrap = bootstrap, o.subagging = subagging, 
-						o.treeOverSampling = treeOverSampling, o.targetClass = targetClass, o.OOB = OOB, 
-						o.treeRebalancedSampling = treeRebalancedSampling)
+			o.treeOverSampling = treeOverSampling, o.targetClass = targetClass, o.OOB = OOB, o.treeRebalancedSampling = treeRebalancedSampling)
 			
 		nX = nrow(X)
 		init.Y = rep(0, nX)
@@ -387,7 +387,7 @@ outputPerturbation = FALSE)
 					}					
 					if (!is.null(catVar)) 
 					{ 
-						catVar <- sortCPP(unique(candidateVariables[catVar]))												
+						catVar <- candidateVariables[catVar]												
 						for (j in 1:length(catVar))
 						{
 							tempXcat = X[,catVar[j]]
@@ -397,27 +397,33 @@ outputPerturbation = FALSE)
 								dummy <- sample(uniquetempXcat, 2)
 								dummyIdx = which(tempXcat == dummy[1])
 								tempXcat[dummyIdx] = dummy[1]
-								tempXcat[-dummyIdx]  = dummy[2]
+								tempXcat[-dummyIdx] = dummy[2]
 							}
+							X[ ,catVar[j]] = tempXcat
 						}
 					}
 					else
 					{ catVar = 0 }
 				}
 				XTmp <- X[, candidateVariables, drop = FALSE]
-				sampleIdx = sample(n, min(n, 2))
-				variablesLength <- checkUniqueObsCPP(XTmp[sampleIdx, ,drop = FALSE])	
+				if (regression | unsupervised) { variablesLength <- checkUniqueObsCPP(XTmp[, ,drop = FALSE])	} 
+				else  
+				{ 
+					sampleIdx = sample(n, min(n,16)) 
+					variablesLength <- checkUniqueObsCPP(XTmp[sampleIdx, ,drop = FALSE])
+				}
 				idxVariableLength <- which(variablesLength != 1)
-				uniqueObs <- which(variablesLength == 1)
-				lengthUniqueObs <- length(uniqueObs)
-				if (lengthUniqueObs > 0) { 	rmVar <- sortCPP(unique(candidateVariables[uniqueObs])) } 
-				nCurrentFeatures <- length(variablesLength)							
-				nIdxVariableLength <- length(idxVariableLength)				
+				nIdxVariableLength <- length(idxVariableLength)
+				nCurrentFeatures <- length(variablesLength)
 				if (nIdxVariableLength > 0) 
 				{		
+					uniqueObs = variablesLength[-idxVariableLength]   
+					lengthUniqueObs <- length(uniqueObs)
+					if (lengthUniqueObs > 0) { rmVar <- sortCPP(unique(candidateVariables[uniqueObs])) }
 					XTmp <- XTmp[,idxVariableLength, drop = FALSE] 
 					candidateVariables = candidateVariables[idxVariableLength]
-					thresholds <- runifMatrixCPP(XTmp[sampleIdx, ,drop = FALSE])
+					if (regression | unsupervised) {	thresholds <- runifMatrixCPP(XTmp[, ,drop = FALSE])	}
+					else { thresholds <- runifMatrixCPP(XTmp[sampleIdx, ,drop = FALSE])  }
 					if (nIdxVariableLength == 1)
 					{
 						nCurrentFeatures = 1													

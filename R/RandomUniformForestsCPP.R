@@ -468,7 +468,7 @@ randomUniformForest.default <- function(X, Y = NULL, xtest = NULL, ytest = NULL,
 		rf.outputPerturbationSampling = outputperturbationsampling,	rf.randomCombination = randomcombinationObject, 
 		rf.randomFeature = randomfeature, rf.x.bagging = bagging, rf.featureSelectionRule = featureselectionrule[1], 
 		rf.regression = regression, use.OOB = OOB, BreimanBounds = BreimanBounds, variableImportance = importance, 
-		whichCatVariables = categoricalvariablesidx, logX = logX, threads = threads, 
+		whichCatVariables = categoricalvariablesidx, logX = logX, threads = threads, unsupervised = unsupervised,
 		parallelPackage = parallelpackage[1])
 	if (!is.null(classwt))
 	{ 
@@ -574,6 +574,7 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 	rf.randomFeature = FALSE,
 	whichCatVariables = NULL,
 	logX = FALSE,
+	unsupervised = FALSE, 
 	threads = "auto",	
 	parallelPackage = "doParallel",
 	export = c("uniformDecisionTree", "CheckSameValuesInAllAttributes", "CheckSameValuesInLabels", "fullNode", "genericNode", "leafNode", "randomUniformForestCore.predict", "onlineClassify", "overSampling", "predictDecisionTree", "options.filter", "majorityClass", "randomCombination", "randomWhichMax", "which.is.na", "factor2vector", "outputPerturbationSampling", "rmNA", "count.factor", 
@@ -637,7 +638,6 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 		{	
 			if (rf.regression & (length(unique(trainLabels)) > 32)) 
 			{ 
-				#cat("Regression has been performed.\n")				
 				if ((rf.subagging < 1) & (rf.bootstrap == TRUE))
 				{ cat("For only accuracy, use option 'subsamplerate = 1' and 'replace = FALSE' \n") }				
 				classCutOff =  c(0,0) 				
@@ -662,7 +662,7 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 					if (length(unique(trainLabels)) <= 32)  
 					{ 
 						cat("Regression has been performed but there is less than 32 distinct values.\nRegression option could be set to FALSE, if classification is required.\nIf outputs are factors, conversion is automatically done.\n")
-						classCutOff =  c(0,0)
+						classCutOff = c(0,0)
 					}
 				}
 			}
@@ -734,11 +734,12 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 	if (!rf.bootstrap & (rf.subagging == 1)) {  use.OOB = FALSE }
 	if (use.OOB)
 	{
-		# rufObject <- foreach(icount(ntree), .export = export, .options.smp = smpopts, .inorder = FALSE, .multicombine = TRUE, 
-		# .packages = "rUniformForestCppClass") %dopar%
 		rufObject <- foreach(i = 1:ntree, .export = export, .options.smp = smpopts, .inorder = FALSE, .multicombine = TRUE) %dopar%
 		{
-			uniformDecisionTree(trainData, trainLabels, nodeMinSize = nodeMinSize, maxNodes = maxNodes, rf.features = features, getSplitAt = splitAt, regression = rf.regression, bootstrap = rf.bootstrap, subagging = rf.subagging, treeDepth = depth, treeClasswt = classwt,	treeOverSampling = rf.overSampling, targetClass = rf.targetClass, OOB = use.OOB, treeRebalancedSampling = rf.rebalancedSampling, x.bagging = rf.x.bagging, random.combination = rf.randomCombination, randomFeature = rf.randomFeature, treeCatVariables = whichCatVariables, outputPerturbation = rf.outputPerturbationSampling, featureSelectionRule = rf.featureSelectionRule, treeDepthControl = depthControl)
+			uniformDecisionTree(trainData, trainLabels, nodeMinSize = nodeMinSize, maxNodes = maxNodes, rf.features = features, 
+			getSplitAt = splitAt, regression = rf.regression, bootstrap = rf.bootstrap, subagging = rf.subagging, treeDepth = depth, treeClasswt = classwt,	treeOverSampling = rf.overSampling, targetClass = rf.targetClass, OOB = use.OOB, 
+			treeRebalancedSampling = rf.rebalancedSampling, x.bagging = rf.x.bagging, random.combination = rf.randomCombination, 
+			randomFeature = rf.randomFeature, treeCatVariables = whichCatVariables, outputPerturbation = rf.outputPerturbationSampling, featureSelectionRule = rf.featureSelectionRule, treeDepthControl = depthControl, unsupervised = unsupervised)
 		}		
 		stopCluster(Cl)
 		{
@@ -844,7 +845,7 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 		{	
 			uniformDecisionTree(trainData, trainLabels, nodeMinSize = nodeMinSize, maxNodes = maxNodes, rf.features = features, 
 				getSplitAt = splitAt, regression = rf.regression, bootstrap = rf.bootstrap, subagging = rf.subagging, treeDepth = depth, treeClasswt = classwt, treeOverSampling = rf.overSampling, targetClass = rf.targetClass, x.bagging = rf.x.bagging, treeRebalancedSampling = rf.rebalancedSampling, random.combination = rf.randomCombination, randomFeature = rf.randomFeature, treeCatVariables = whichCatVariables, outputPerturbation = rf.outputPerturbationSampling, 
-				featureSelectionRule = rf.featureSelectionRule, treeDepthControl = depthControl)$Tree
+				featureSelectionRule = rf.featureSelectionRule, treeDepthControl = depthControl, unsupervised = unsupervised)$Tree
 		}					
 		if (variableImportance) {	gen.rufObject = rufObject	}
 		else 
@@ -1467,7 +1468,7 @@ strength_and_correlation <- function(OOB.votes, OOB.object,
 			maj.class.j = vector(length = n.OOB)
 			for (i in 1:n.OOB)
 			{  
-				second.class.max = which.max(OOB.object$class.counts[i,-1])
+				second.class.max = randomWhichMax(OOB.object$class.counts[i,-1])
 				maj.class.j[i] = rf.classes[-OOB.object$majority.vote[i]][second.class.max]
 			}
 			OOB.votes.1 = cbind(OOB.votes, OOB.object$majority.vote)
@@ -2039,7 +2040,8 @@ partialImportance <- function(X, object, whichClass = NULL, threshold = NULL, th
 	return(obsObject)
 }
 
-partialDependenceOverResponses <- function(Xtest, importanceObject, whichFeature = NULL, whichOrder = c("first", "second", "all"), outliersFilter = FALSE, plotting = TRUE, followIdx = FALSE, maxClasses = 10)
+partialDependenceOverResponses <- function(Xtest, importanceObject, whichFeature = NULL, whichOrder = c("first", "second", "all"), outliersFilter = FALSE, plotting = TRUE, followIdx = FALSE, 
+maxClasses = if (is.null(whichFeature)) { 10 } else { max(10, which.is.factor(Xtest[, whichFeature, drop = FALSE], count = TRUE)) })
 {
 	FeatureValue = Response = Class = Observations = NULL
 	if (!is.null(whichFeature))
@@ -2119,7 +2121,7 @@ partialDependenceOverResponses <- function(Xtest, importanceObject, whichFeature
 					cat("\n")
 				}
 				else
-				{	partialDependenceMatrix[,1] = featureLevels[partialDependenceMatrix[,1]] }
+				{	partialDependenceMatrix[,1] = featureLevels[ as.numeric(as.factor(partialDependenceMatrix[,1]))] }
 			}
 		}
     }		
@@ -2193,7 +2195,8 @@ partialDependenceOverResponses <- function(Xtest, importanceObject, whichFeature
 	{  return(partialDependenceMatrix)  }
 }	
 
-partialDependenceBetweenPredictors <- function(Xtest, importanceObject, features, whichOrder = c("first", "second", "all"), perspective = FALSE, outliersFilter = FALSE, maxClasses = 10)
+partialDependenceBetweenPredictors <- function(Xtest, importanceObject, features, whichOrder = c("first", "second", "all"), 
+perspective = FALSE, outliersFilter = FALSE, maxClasses = max(10, which.is.factor(Xtest[,features, drop = FALSE], count = TRUE)))
 {
 	Variable1 = Variable2 = SameClass = ..level.. = Response = NULL
 	if (length(features) != 2) { stop("Please provide two features.") }	
@@ -3759,7 +3762,7 @@ uthreads = "auto",
 			if (endModel[1] == "MDSkMeans")
 			{
 				if (is.null(clusters))  
-				{	X.gapstat <- gap.stats(Z[sample(nn, floor(sqrt(nn*log(nn)))),], B = bootstrapReplicates, maxClusters = maxClusters) }
+				{	X.gapstat <- gap.stats(Z, B = bootstrapReplicates, maxClusters = maxClusters) }
 				else 
 				{ X.gapstat = NULL }
 				

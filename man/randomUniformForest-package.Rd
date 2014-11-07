@@ -11,8 +11,8 @@ Ensemble model for classification, regression and unsupervised learning, based o
 \tabular{ll}{
 Package: \tab randomUniformForest\cr
 Type: \tab Package\cr
-Version: \tab 1.0.9\cr
-Date: \tab 2014-11-05\cr
+Version: \tab 1.1.0\cr
+Date: \tab 2014-11-07\cr
 License: \tab BSD_3_clause\cr
 }
 

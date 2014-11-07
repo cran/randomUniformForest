@@ -15,7 +15,8 @@ partialDependenceOverResponses(Xtest, importanceObject,
 	outliersFilter = FALSE, 
 	plotting = TRUE, 
 	followIdx = FALSE, 
-	maxClasses = 10)
+	maxClasses = if (is.null(whichFeature)) { 10 } else { max(10, 
+	which.is.factor(Xtest[, whichFeature, drop = FALSE], count = TRUE)) })
 }
 
 \arguments{

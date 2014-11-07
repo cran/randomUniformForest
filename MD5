@@ -1,10 +1,10 @@
-3e992a3ea1c390658e4bc020285e405b *DESCRIPTION
+9d5e7191d920cac263370cbbc893123e *DESCRIPTION
 18bf0cc0b8d6a6651def2bbdec1b3cb0 *LICENSE
 c9b3ad38eb5bba913e7876dd3b9921b6 *NAMESPACE
-2732d1a9b8fa1e3aa80600ed5fec7fa1 *NEWS
-ee6818c900e2ac66cd769736c6e09419 *R/DecisionTreesCPP.R
+ccfad634295f8b896d27200b0431bd1c *NEWS
+a028d6106c2ed65749f0fa2925c35ea0 *R/DecisionTreesCPP.R
 b4a344419a9a2253167a042b394b282f *R/OnliningRandomUniformForests.R
-35247f7b9c33bfd6f75ce90b0ee78d87 *R/RandomUniformForestsCPP.R
+84da50615b76e2679bd2758987133da9 *R/RandomUniformForestsCPP.R
 eb836545bf18b5de29f8a34dda061f16 *R/genericFunctions.R
 f8454b25dab676dbf3e7e0ffed77e7ff *R/rUniformForestCppClass.R
 56db096491edc7b8b360e275a82c6c83 *build/vignette.rds
@@ -14,7 +14,7 @@ d517bc1436a179e634e9b4816bbbc4bc *data/breastCancer.RData
 17ceb4e9f4ae9e0107e11d3723f5265e *data/carEvaluation.RData
 515e6b8e3dcfd89574d5f2e2dbb54835 *data/wineQualityRed.RData
 56c96602de4e08c82f078b5aef9f3d9c *inst/CITATION
-85ef9cfb19605b6f1e325ea7b237e7bd *inst/doc/randomUniformForestsOverview.pdf
+88bcd30f3615b5367250b9c3b4c203e3 *inst/doc/randomUniformForestsOverview.pdf
 1a0f7353ef238a195feec4d3eb126890 *inst/doc/randomUniformForestsOverview.pdf.asis
 d53f00f503a8fd1f14c1be852817c2f3 *man/ConcreteCompressiveStrength.Rd
 9f8e050a6e3c05082a53a259c282edbb *man/as.supervised.Rd
@@ -33,8 +33,8 @@ b11b47439b922c7bc702d3cd46072538 *man/init_values.Rd
 afd6c00ff0918e86e2fca3372088521b *man/mergeClusters.Rd
 1f2c349863e9db03091fedc5f92cc985 *man/model.stats.Rd
 d9935b641157c7ad39fb4d10ccaf486d *man/modifyClusters.Rd
-efab1eba1cd3d312b5b5687e7f3299dd *man/partialDependenceBetweenPredictors.Rd
-249ab6bd9ce18b4dbd823e183b2a8afd *man/partialDependenceOverResponses.Rd
+052832897e713bb021cb6b1be25bf299 *man/partialDependenceBetweenPredictors.Rd
+b6e02dfbe8cc12d3d471bf35ecf57e5b *man/partialDependenceOverResponses.Rd
 d27bb2b432097eaf1ecf25a229807cc9 *man/partialImportance.Rd
 67e99ac4ffa04d7c403b7d14d5e09ccc *man/plotTree.Rd
 be46c97b0a3c096ece178eef3cfad3f1 *man/postProcessingVotes.Rd
@@ -42,8 +42,8 @@ be46c97b0a3c096ece178eef3cfad3f1 *man/postProcessingVotes.Rd
 76bceda8a7baed908d520904d86dab75 *man/rUniformForest.big.Rd
 49c24abeeb44c195c65c1c61250000c9 *man/rUniformForest.combine.Rd
 b445d98a382fc873aad317d3d5db3acc *man/rUniformForest.grow.Rd
-da12f9cf569b9ccdd68903c8f2e2eb47 *man/randomUniformForest-package.Rd
-1f10f7a28dad905991093037ca12030f *man/randomUniformForest.Rd
+a64b249c446fe8840f4a5cbf17246fc2 *man/randomUniformForest-package.Rd
+15f67e1551cdc14b7449184483c56084 *man/randomUniformForest.Rd
 3f4b64ff5e766fdd7a10d7f249ae19f2 *man/rm.trees.Rd
 c1a63b68b16b4cfeb76999c580e7df23 *man/roc.curve.Rd
 8cc047f15410b5f5ef393679c115adf9 *man/simulationData.Rd

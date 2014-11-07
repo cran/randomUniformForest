@@ -12,7 +12,8 @@ partialDependenceBetweenPredictors(Xtest, importanceObject, features,
 	whichOrder = c("first", "second", "all"),
 	perspective = FALSE,
 	outliersFilter = FALSE,
-	maxClasses = 10)
+	maxClasses = max(10, which.is.factor(Xtest[,features, drop = FALSE], 
+	count = TRUE)))
 }
 
 \arguments{
