@@ -5,19 +5,21 @@
 Random Uniform Forests for Classification, Regression and Unsupervised Learning
 }
 \description{
-Ensemble model for classification, regression and unsupervised learning, based on a forest of unpruned and randomized binary decision trees. Unlike \emph{Breiman's Random Forests}, each tree is grown by sampling, \emph{with replacement}, a set of variables at each node. Each cut-point is generated randomly, according to the \emph{continuous Uniform distribution between two random points of each candidate variable}. Optimal random node is, then, selected among many full random nodes by maximizing information gain (classification) or minimizing 'L2' (or 'L1') distance (regression). Unlike \emph{Extremely Randomized Trees}, data are either bootstrapped or sub-sampled for each tree. Random Uniform Forests are aimed to lower correlation between trees, to offer a deep analysis of variable importance and to allow native distributed and incremental learning. The unsupervised mode introduces clustering and dimension reduction, using a three-layer engine (dissimilarity matrix, Multidimensional Scaling and k-means or hierarchical clustering). 
+Ensemble model for classification, regression and unsupervised learning, based on a forest of unpruned and randomized binary decision trees. Unlike \emph{Breiman's Random Forests}, each tree is grown by sampling, \emph{with replacement}, a set of variables at each node. Each cut-point is generated randomly, according to the \emph{continuous Uniform distribution between two random points of each candidate variable or using its whole current support}. Optimal random node is, then, selected among many full random nodes by maximizing information gain (classification) or minimizing 'L2' (or 'L1') distance (regression). Unlike \emph{Extremely Randomized Trees}, data are either \emph{bootstrapped or sub-sampled for each tree}. Random Uniform Forests are aimed to lower correlation between trees, to offer a deep analysis of variable importance and to allow native distributed and incremental learning. The unsupervised mode introduces clustering and dimension reduction, using a three-layer engine (dissimilarity matrix, Multidimensional Scaling and k-means or hierarchical clustering). 
 }
 \details{
 \tabular{ll}{
 Package: \tab randomUniformForest\cr
 Type: \tab Package\cr
-Version: \tab 1.1.0\cr
-Date: \tab 2014-11-07\cr
+Version: \tab 1.1.1\cr
+Date: \tab 2014-12-03\cr
 License: \tab BSD_3_clause\cr
 }
 
 Installation:  install.packages("randomUniformForest")\cr
 Usage:         library(randomUniformForest)\cr
+
+
 }
 \references{
  Amit, Y., Geman, D., 1997. Shape Quantization and Recognition with Randomized Trees. \emph{Neural Computation} 9, 1545-1588. 

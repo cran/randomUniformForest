@@ -52,9 +52,11 @@ endModel = c("MDS", "MDSkMeans", "MDShClust"),
 }
 
 \details{
-clusteringObservations() function leads to many modelling paradigms, depending on what is called. To summarize, the first level is a clustering scheme of the learning task, e.g. 'OOB = FALSE'. In this case, the modelling links the learning with the true labels, providing a picture on how the classifier is "seeing" the training sample. In particular, this representation provides insights on how the classification task might be difficult.\cr
-The second level calls the OOB point of view, e.g. how the classifier is generalizing its current knowledge. In this case, one will simply visualize how errors will probably appear the most. \cr
-The third level involves the prediction task if 'predObject' is provided or if a test set is provided when doing the supervised task (option 'xtest' in code{\link{randomUniformForest}}. In this case, the classifier will map its own predictions on the low dimensional space.\cr
+clusteringObservations() function leads to many modelling paradigms, depending on what is called.\cr
+- To summarize, the first level is a clustering scheme of the learning task, e.g. 'OOB = FALSE'. In this case, the modelling links the learning with the true labels, providing a picture on how the classifier is "seeing" the training sample. In particular, this representation provides insights on how the classification task might be difficult.\cr
+- The second level calls the OOB point of view, e.g. how the classifier is generalizing its current knowledge. In this case, one will simply visualize where errors will probably appear the most.\cr
+- The third level involves the prediction task if 'predObject' is provided or if a test set is provided when doing the supervised task (option 'xtest' in \code{\link{randomUniformForest}}). In this case, the classifier will map its own predictions on the low dimensional space. 
+
 In the three levels, there is at least one layer (the dissimilarity matrix), in addition, involved. If one overrides the default 'endModel = MDS' option, then more layers will be added, leading to a more complex object.
 }
 

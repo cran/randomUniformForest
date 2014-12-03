@@ -3,13 +3,13 @@
 
 %- Also NEED an '\alias' for EACH other topic documented here.
 \title{
-  Change number of clusters (and clusters shape) on the flight
+  Change number of clusters (and clusters shape) on the fly
 }
 \description{
-   Modify on the flight the number of clusters in the unsupervised mode of Random Uniform Forests. Once the unsupervised model is built, one can change the clustering scheme, adding or merging clusters without computing again the model. Average silhouette coefficient or inter-classes variance are automatically adjusted in order to assess the new scheme.
+   Modify on the fly the number of clusters in the unsupervised mode of Random Uniform Forests. Once the unsupervised model is built, one can change the clustering scheme, adding or merging clusters without computing again the model. Average silhouette coefficient or inter-classes variance are automatically adjusted in order to assess the new scheme.
 }
 \usage{
-modifyClusters(object, decreaseBy = NULL, increaseBy = NULL)
+modifyClusters(object, decreaseBy = NULL, increaseBy = NULL, seed = 2014)
 }
 
 %- maybe also 'usage' for other objects documented here.
@@ -22,6 +22,9 @@ modifyClusters(object, decreaseBy = NULL, increaseBy = NULL)
 	}
 	\item{increaseBy}{
 	  decrease the current number of clusters by the value of 'increaseBy'.
+	}
+	\item{seed}{
+	  see \code{\link{unsupervised.randomUniformForest}}.
 	}
 }
 

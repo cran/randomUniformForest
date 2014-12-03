@@ -142,10 +142,13 @@ which.is.factor <- function(X, maxClasses = floor(0.01*min(3000, nrow(X))+2), co
 		}
 		else
 		{
-			if (countValues <= maxClasses)
-			{ 
-				if (count) { values[j] = countValues  }
-				else { 	values[j] = 1 }	
+			if (!is.numeric(X[,j]))
+			{  
+				if (countValues <= maxClasses)
+				{ 
+					if (count) { values[j] = countValues  }
+					else { 	values[j] = 1 }	
+				}
 			}
 		} 	
 	}
@@ -225,9 +228,20 @@ matrix2factor2 <- function(X, maxClasses = 10)
 	return(X)
 }
 
-NAfactor2matrix =function(X, toGrep = "")
+
+NAfactor2matrix <- function(X, toGrep = "")
 {
-	toGrepIdx = which(X == toGrep, arr.ind = TRUE)
+	if (length(toGrep) > 1)
+	{
+		for (i in 1:length(toGrep))
+		{  
+			toGrepIdx = NULL
+			toGrepIdx = rbind(toGrepIdx, which(X == toGrep[i], arr.ind = TRUE))				
+		}
+	}
+	else
+	{	toGrepIdx =  which(X == toGrep, arr.ind = TRUE)  }
+	
 	NAIdx = which(is.na(X), arr.ind = TRUE)
 	
 	X <- factor2matrix(X)
@@ -1503,7 +1517,7 @@ outputPerturbationSampling = function(Y, whichClass = 1, sampleSize = 1/4, regre
 		
 		idxClass = which(Y == whichClass)
 		
-		perturbClassidx = sample(idxClass, floor(sampleSize*length(idxClass)))
+		perturbClassidx = sample(idxClass, floor(min(sampleSize,0.5)*length(idxClass)))
 		perturbClassY  = sample(Y[which(Y !=  whichClass)], length(perturbClassidx), replace = TRUE)
 		Y[perturbClassidx] = perturbClassY
 	}
@@ -1707,7 +1721,7 @@ myAUC <- function(pred.classes, Y, positive = 2, falseDiscoveryRate = FALSE)
 	n_pos.idx = length(pos.idx)
 	if(n_pos.idx == 0)
 	{	
-		cat("No positive case found.\n")
+		cat("\nNo positive case found.\n")
 		return(list(auc = 0, VP = 0, FP = 0))
 	}
 	else
@@ -2394,7 +2408,7 @@ model.stats <- function(predictions, responses, regression = FALSE)
 }
 
 generic.cv <- function(X, Y, nTimes = 1, k = 10, seed = 2014, regression = TRUE, genericAlgo = NULL, specificPredictFunction = NULL, 
-			  metrics = c("none", "AUC", "precision", "F-score", "L1", "geometric mean", "geometric mean (precision)"))
+metrics = c("none", "AUC", "precision", "F-score", "L1", "geometric mean", "geometric mean (precision)"))
 {
 	set.seed(seed)
 	s = 1
@@ -2455,8 +2469,8 @@ generic.cv <- function(X, Y, nTimes = 1, k = 10, seed = 2014, regression = TRUE,
 				if (length(unique(Y2)) == 2)
 				{	
 					if (metrics[1] == "AUC") {  metricValues[s] = pROC::auc(as.numeric(Y2), as.numeric(predictions)) }				
-					if (metrics[1] == "precision") 	{ 	metricValues[s] = confMat[2,2]/sum(confMat[2,]) 	}				
-					if (metrics[1] == "F-score")  	{   metricValues[s] = round(fScore(confMat),4)	}
+					if (metrics[1] == "precision") 	{ metricValues[s] = confMat[2,2]/sum(confMat[2,]) }				
+					if (metrics[1] == "F-score")  	{ metricValues[s] = round(fScore(confMat),4) }
 				}
 				else 
 				{  
@@ -2480,11 +2494,7 @@ which.is.nearestCenter <- function(X, Y)
 	n = nrow(X)
 	K = nrow(Y)
 	distToY = matrix(NA, n, K)
-	for (k in 1:K)
-	{	
-		distToY[,k] = apply(X, 1, function(Z) L2Dist(Z, Y[k,]))	
-	}
-	
+	for (k in 1:K)	{ distToY[,k] = apply(X, 1, function(Z) L2Dist(Z, Y[k,])) }	
 	return(apply(distToY, 1, which.min))
 }
 
@@ -2561,5 +2571,73 @@ timeStampCore <- function(stamp, n = NULL, begin = 0, end = NULL, windowLength =
 		{ stop("Please provide either a 'end' value or a 'windowLength' one.\n") }
 	}
 	return(Z)	
-}	
+}
+reSMOTE <- function(X, Y, majorityClass = 0, increaseMinorityClassTo = NULL, 
+samplingMethod = c("uniform univariate sampling", "uniform multivariate sampling", "with bootstrap"))
+{
+	n = nrow(X)
+	if (is.data.frame(X)) stop("X must be a matrix.\n")
+	if (n != length(Y)) stop("Data and responses don't have same size.\n")
+	
+	majorityIdx = NULL
+	for (i in seq_along(majorityClass))
+	{ 	majorityIdx = c(majorityIdx, which(Y == majorityClass[i])) }
+	percentMinority = 1 - length(majorityIdx)/n
+	minorityIdx = (1:n)[-majorityIdx]
+	
+	if (is.null(increaseMinorityClassTo)) 
+	{ 
+		increaseMinorityClassTo = min(2*percentMinority, 0.5)
+		cat("Argument 'increaseMinorityClassTo' has not been set.\nOriginal minority class percentage has been raised by a factor 2\n.")
+	}
+	
+	iterations = round(increaseMinorityClassTo/percentMinority, 0)
+	
+	if (iterations < 1) stop("'increaseMinorityClassTo' must be increased.\n")
+	
+	if (samplingMethod[1] == "with bootstrap")
+	{ 
+		cat("'with bootstrap' is only needed as the second argument of 'method' option. Default option will be computed.\n")
+		samplingMethod[1] = "uniform univariate sampling"
+	}
+	
+	XXY = vector('list', iterations)
+	for (i in 1:iterations)
+	{
+		XXY[[i]] <- unsupervised2supervised(X, method = samplingMethod[1], 
+		bootstrap = if (length(samplingMethod) > 1) { TRUE } else { FALSE })$X[(n+1):(2*n),][minorityIdx,]
+	}
+
+	newX = do.call(rbind, XXY)
+	rm(XXY)
+	newXY = cbind(newX, rep(Y[minorityIdx], iterations))
+	p= ncol(newXY)
+	colnames(newXY)[p] = "Value"
+	if (!is.numeric(Y))
+	{	
+		levelsY = levels(Y)
+		minorityClassIdx = which(levelsY != as.character(majorityClass))
+		currentValuesOfY = as.factor(newXY[,p])
+		levels(currentValuesOfY) = levelsY[minorityClassIdx]
+		newXY = as.data.frame(newXY)
+		newXY[,p] = as.factor(currentValuesOfY)
+		colnames(newXY)[p] = "Class"
+		X = as.data.frame(X)
+		XY = (cbind(X,Y))
+		colnames(XY)[p] = "Class"
+		ZY  = rbind(XY, newXY)
+	}
+	else
+	{
+		XY = (cbind(X,Y))
+		colnames(XY)[p] = "Value"
+		ZY  = rbind(XY, newXY)	
+	}
+	cat("Proportion of examples of minority class in the original sample: ", round(100*(length(minorityIdx))/n, 2), "%.\n", sep="")
+	cat("Proportion of examples of minority class in the new sample: ", round(100*(iterations*length(minorityIdx))/nrow(ZY), 2), "%.\n", sep="")
+	
+	return(ZY)
+} 
+
+ 
 # END OF FILE

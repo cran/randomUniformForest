@@ -39,9 +39,9 @@ metrics = c("none", "AUC", "precision", "F-score", "L1", "geometric mean",
 	if TRUE, performs regression.
 }
  \item{genericAlgo}{
-    wrapper function to embed the algorithm needed to be assesses. One can eventually add options. NULL is only for convenience. Wrapper function is needed to assess cross-validation.
+    wrapper function to embed the algorithm that one needs to assess. One can eventually add options. NULL is only for convenience. Wrapper function is needed to assess cross-validation.
 }
- \item{specificPredictFunction}{
+ \item{specificPredictFunction }{
     if the assessed model does not support the R generic method 'predict', one has to define here, with a function, how predictions have to be generated.
 }
 \item{metrics}{
@@ -69,9 +69,10 @@ a list with the following components :
 
 ## 10-fold cross-validation for randomForest algorithm
 ## create the wrapper function
+# require(randomForest) || install.packages("randomForest")
 # genericAlgo <- function(X, Y) randomForest(X, Y)
 
-## run 
+## run
 # RF.10cv.iris <- generic.cv(X, Y, genericAlgo = genericAlgo, regression = FALSE)
 
 ## 10-fold cross-validation for Gradient Boosting Machines algorithm (gbm package)

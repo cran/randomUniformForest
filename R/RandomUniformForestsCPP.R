@@ -26,10 +26,10 @@ importance <- function(object, ...) UseMethod("importance")
 
 unsupervised <- function(object,...) UseMethod("unsupervised")
 
-randomUniformForest.formula <- function(formula, data = NULL, ...)
+randomUniformForest.formula <- function(formula, data = NULL, subset = NULL, ...)
 {
-	if (is.null(data))
-	stop ("please provide data")
+	if (is.null(data))stop ("Please provide data.\n")	
+	if (!is.null(subset)) data = data[subset,]	
 	data <- fillVariablesNames(data)	
 	mf <- model.frame(formula = formula, data = as.data.frame(data))
 	x <- model.matrix(attr(mf, "terms"), data = mf)[,-1]
@@ -59,31 +59,36 @@ print.randomUniformForest <- function(x,...)
 		cat("Out-of-bag (OOB) evaluation")
 		if (!object$forest$regression)
 		{
-			OOBErrorRate = mean(100*object$forest$pred.error)
-			cat("\nOOB estimate of error rate: ", round(OOBErrorRate, 2),"%\n", sep ="")
-			cat("OOB error rate bound (with 1% deviation): ",round(OOBErrorRate + OOBErrorRate*(1 - estimatePredictionAccuracy(floor(length(object$forest$OOB.predicts)*0.368))), 2),"%\n", sep="")
-			cat("\nOOB confusion matrix:\n")
-			colnames(object$forest$OOB)[1:length(object$classes)] = object$classes
-			rownames(object$forest$OOB)[1:length(object$classes)] = object$classes
-			print(round(object$forest$OOB,4))			
-			if ((length(object$classes) == 2) & (rownames(object$forestParams)[1] != "reduceDimension"))
-			{	
-				cat("\nOOB estimate of AUC: ", round(pROC::auc(as.numeric(object$y), as.numeric(object$forest$OOB.predicts))[[1]], 4), sep = "")
-				cat("\nOOB estimate of AUPR: ", round(myAUC(as.numeric(object$forest$OOB.predicts), 
-				as.numeric(object$y), falseDiscoveryRate = TRUE)$auc, 4),sep = "")
-				cat("\nOOB estimate of F1-score: ", round(fScore(object$forest$OOB), 4),sep = "")
-			}
-			cat("\nOOB (adjusted) estimate of geometric mean:", round(gMean(object$forest$OOB),4),"\n")
-			if (nrow(object$forest$OOB) > 2)
-			{ cat("OOB (adjusted) estimate of geometric mean for precision:", round(gMean(object$forest$OOB, precision = TRUE),4),"\n") }
-			if (!is.null(object$forest$OOB.strengthCorr))
+			if (!is.numeric(object$forest$pred.error))
+			{	cat("\n", object$forest$pred.error, "\n", "Options used seem have to be reconsidered.","\n") }
+			else
 			{
-				cat("\nBreiman's bounds")
-				cat("\nPrediction error (expected to be lower than): ", round(mean(100*rmNA(object$forest$OOB.strengthCorr$PE)),2),"%\n", sep ="")
-				cat("Upper bound of prediction error: ", round(mean(100*rmNA(object$forest$OOB.strengthCorr$std.strength^2/object$forest$OOB.strengthCorr$strength^2)),2),"%\n", sep ="")
-				cat("Average correlation between trees:", round(mean(round(rmNA(object$forest$OOB.strengthCorr$avg.corr),4)),4),"\n")
-				cat("Strength (margin):", round(mean(round(rmNA(object$forest$OOB.strengthCorr$strength),4)),4),"\n")
-				cat("Standard deviation of strength:", round(mean(round(rmNA(object$forest$OOB.strengthCorr$std.strength),4)),4),"\n")
+				OOBErrorRate = mean(100*object$forest$pred.error)
+				cat("\nOOB estimate of error rate: ", round(OOBErrorRate, 2),"%\n", sep ="")
+				cat("OOB error rate bound (with 1% deviation): ",round(OOBErrorRate + OOBErrorRate*(1 - estimatePredictionAccuracy(floor(length(object$forest$OOB.predicts)*0.368))), 2),"%\n", sep = "")
+				cat("\nOOB confusion matrix:\n")
+				colnames(object$forest$OOB)[1:length(object$classes)] = object$classes
+				rownames(object$forest$OOB)[1:length(object$classes)] = object$classes
+				print(round(object$forest$OOB,4))			
+				if ((length(object$classes) == 2) & (rownames(object$forestParams)[1] != "reduceDimension"))
+				{	
+					cat("\nOOB estimate of AUC: ", round(pROC::auc(as.numeric(object$y), as.numeric(object$forest$OOB.predicts))[[1]], 4), sep = "")
+					cat("\nOOB estimate of AUPR: ", round(myAUC(as.numeric(object$forest$OOB.predicts), 
+					as.numeric(object$y), falseDiscoveryRate = TRUE)$auc, 4),sep = "")
+					cat("\nOOB estimate of F1-score: ", round(fScore(object$forest$OOB), 4),sep = "")
+				}
+				cat("\nOOB (adjusted) estimate of geometric mean:", round(gMean(object$forest$OOB),4),"\n")
+				if (nrow(object$forest$OOB) > 2)
+				{ cat("OOB (adjusted) estimate of geometric mean for precision:", round(gMean(object$forest$OOB, precision = TRUE),4),"\n") }
+				if (!is.null(object$forest$OOB.strengthCorr))
+				{
+					cat("\nBreiman's bounds")
+					cat("\nPrediction error (expected to be lower than): ", round(mean(100*rmNA(object$forest$OOB.strengthCorr$PE)),2),"%\n", sep ="")
+					cat("Upper bound of prediction error: ", round(mean(100*rmNA(object$forest$OOB.strengthCorr$std.strength^2/object$forest$OOB.strengthCorr$strength^2)),2),"%\n", sep ="")
+					cat("Average correlation between trees:", round(mean(round(rmNA(object$forest$OOB.strengthCorr$avg.corr),4)),4),"\n")
+					cat("Strength (margin):", round(mean(round(rmNA(object$forest$OOB.strengthCorr$strength),4)),4),"\n")
+					cat("Standard deviation of strength:", round(mean(round(rmNA(object$forest$OOB.strengthCorr$std.strength),4)),4),"\n")
+				}
 			}
 		}
 		else
@@ -329,7 +334,8 @@ genericOutput <- function(xtest, ytest, paramsObject, RUF.model, ytrain = NULL, 
 	}		
 	if (!is.null(RUF.model$OOB))
 	{
-		if (!RUF.model$regression & is.factor(ytest)) { row.names(RUF.model$OOB) = colnames(RUF.model$OOB)[-(length(YNames)+1)] = YNames }
+		if (!RUF.model$regression & is.factor(ytest) & !is.character(RUF.model$OOB)) 
+		{ row.names(RUF.model$OOB) = colnames(RUF.model$OOB)[-(length(YNames)+1)] = YNames }
 	}
 	if (!is.null(xtest)) 
 	{ 
@@ -342,16 +348,21 @@ genericOutput <- function(xtest, ytest, paramsObject, RUF.model, ytrain = NULL, 
 			classcutoff = c(which(classes == as.character(classcutoff[1])), as.numeric( classcutoff[2]))
 		}				
 		if (classcutoff[2] != 0 ) {  classcutoff[2] = 0.5/classcutoff[2] }		
-		RUF.predicts <- randomUniformForestCore.predict(RUF.model, xtest, pr.classwt = classwt, pr.imbalance = classcutoff)		 
+		RUF.predicts <- randomUniformForestCore.predict(RUF.model, xtest, pr.classwt = classwt, 
+		pr.imbalance = classcutoff)		 
 		if (!is.null(ytest)) 
 		{ 
-			errorObject <- someErrorType(RUF.predicts, factor2vector(ytest)$vector, generic = FALSE, regression = RUF.model$regression)
+			errorObject <- someErrorType(RUF.predicts, factor2vector(ytest)$vector, generic = FALSE, 
+			regression = RUF.model$regression)
 			if (!RUF.model$regression & is.factor(ytest)) 
 			{ row.names(errorObject$confusion) = colnames(errorObject$confusion)[-(length(YNames)+1)] = YNames }			
 			RUFObject = list(forest = RUF.model, predictionObject = RUF.predicts, errorObject = errorObject, forestParams = paramsObject, classes = classes) 
 		}
 		else
-		{	RUFObject = list(forest = RUF.model, predictionObject = RUF.predicts, forestParams = paramsObject,  classes = classes) }		
+		{	
+			RUFObject = list(forest = RUF.model, predictionObject = RUF.predicts, forestParams = paramsObject,  
+			classes = classes) 
+		}		
 	}
 	else
 	{   RUFObject = list(forest = RUF.model, forestParams = paramsObject, classes = classes)	}	
@@ -385,6 +396,7 @@ randomUniformForest.default <- function(X, Y = NULL, xtest = NULL, ytest = NULL,
 	na.action = c("fastImpute", "accurateImpute", "omit"),
 	logX = FALSE,
 	classcutoff = c(0,0),
+	subset = NULL,
 	threads = "auto",
 	parallelpackage = "doParallel", 
 	...)
@@ -393,6 +405,11 @@ randomUniformForest.default <- function(X, Y = NULL, xtest = NULL, ytest = NULL,
 		if (threads != 1)
 		{
 			if (sample(3,1) == 3) { rm.tempdir() }
+		}
+		if (!is.null(subset))
+		{
+			X = X[subset,]
+			Y = Y[subset]
 		}
 		if (is.null(Y)) 
 		{ 
@@ -410,6 +427,12 @@ randomUniformForest.default <- function(X, Y = NULL, xtest = NULL, ytest = NULL,
 		if (ntree < 2) { stop("Please use at least 2 trees for computing forest.\n") }			
 		if ( (subsamplerate == 1) &  (replace == FALSE))  { OOB = FALSE }
 		if (depth < 3) { stop("Stumps are not allowed. Minimal depth is 3, leading, at most, to 8 leaf nodes.\n") }
+		if (!is.null(classwt) & (!is.factor(Y) | regression)) 
+		{ 
+			cat("Class reweighting is not allowed for regression. Resetting to default values.\n")
+			classwt = NULL
+		}
+		if (targetclass == 0) { stop("'targetclass' must take a strictly positive value") }
 		if ( (BreimanBounds & (length(unique(Y)) > 2) & (ntree > 500)) | (BreimanBounds & (ntree > 500)) ) 
 		{ cat("Note: Breiman's bounds (especially for multi-class problems) are computationally intensive.\n") }
 		if (maxnodes < 6) { stop("Maximal number of nodes must be above 5.\n") }
@@ -421,7 +444,7 @@ randomUniformForest.default <- function(X, Y = NULL, xtest = NULL, ytest = NULL,
 		}		 
 		if (is.data.frame(X)) 
 		{ 	cat("X is a data frame. String or factors have been converted to numeric values.\n") }
-		X <- NAfactor2matrix(X)
+		X <- NAfactor2matrix(X, toGrep = "anythingParticular")
 		if (!is.null(categoricalvariablesidx))
 		{
 			if (categoricalvariablesidx[1] == "all")
@@ -455,7 +478,7 @@ randomUniformForest.default <- function(X, Y = NULL, xtest = NULL, ytest = NULL,
 			}			
 			for (i in 2:length(randomcombination)) {  randomcombinationString = paste(randomcombinationString, randomcombination[i], sep=",") }
 			for (i in 1:length(weights)) {  randomcombinationString = paste(randomcombinationString, weights[i], sep=",") }
-			if (!is.null(xtest)) { xtest <- randomCombination(NAfactor2matrix(xtest), combination = randomcombination, weights = weights) }			
+			if (!is.null(xtest)) { xtest <- randomCombination(NAfactor2matrix(xtest, toGrep = "anythingParticular"), combination = randomcombination, weights = weights) }			
 			randomcombinationObject = list(randomcombination, weights)					
 			X <- randomCombination(X, combination = randomcombinationObject[[1]], weights = randomcombinationObject[[2]])			
 		}
@@ -464,9 +487,9 @@ randomUniformForest.default <- function(X, Y = NULL, xtest = NULL, ytest = NULL,
 	}	
 	RUF.model <- randomUniformForestCore(X, trainLabels = Y, ntree = ntree, nodeMinSize = nodesize, maxNodes = maxnodes, 
 		features = mtry, rf.bootstrap = replace, depth = depth, depthControl = depthcontrol, 
-		rf.subagging = subsamplerate, classwt = classwt, classCutOff = classcutoff, rf.overSampling = oversampling, rf.targetClass = targetclass, rf.rebalancedSampling = rebalancedsampling, 
+		rf.treeSubsampleRate = subsamplerate, classwt = classwt, classCutOff = classcutoff, rf.overSampling = oversampling, rf.targetClass = targetclass, rf.rebalancedSampling = rebalancedsampling, 
 		rf.outputPerturbationSampling = outputperturbationsampling,	rf.randomCombination = randomcombinationObject, 
-		rf.randomFeature = randomfeature, rf.x.bagging = bagging, rf.featureSelectionRule = featureselectionrule[1], 
+		rf.randomFeature = randomfeature, rf.treeBagging = bagging, rf.featureSelectionRule = featureselectionrule[1], 
 		rf.regression = regression, use.OOB = OOB, BreimanBounds = BreimanBounds, variableImportance = importance, 
 		whichCatVariables = categoricalvariablesidx, logX = logX, threads = threads, unsupervised = unsupervised,
 		parallelPackage = parallelpackage[1])
@@ -560,8 +583,8 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 	rf.bootstrap = ifelse(rf.regression, FALSE, TRUE), 
 	use.OOB = TRUE,
 	BreimanBounds = ifelse(use.OOB, TRUE, FALSE),
-	rf.subagging = ifelse(rf.regression, 0.7, 1),
-	rf.x.bagging = FALSE, 
+	rf.treeSubsampleRate = ifelse(rf.regression, 0.7, 1),
+	rf.treeBagging = FALSE, 
 	classwt = NULL,
 	classCutOff = c(0,0),
 	rf.overSampling = 0,
@@ -578,8 +601,7 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 	threads = "auto",	
 	parallelPackage = "doParallel",
 	export = c("uniformDecisionTree", "CheckSameValuesInAllAttributes", "CheckSameValuesInLabels", "fullNode", "genericNode", "leafNode", "randomUniformForestCore.predict", "onlineClassify", "overSampling", "predictDecisionTree", "options.filter", "majorityClass", "randomCombination", "randomWhichMax", "which.is.na", "factor2vector", "outputPerturbationSampling", "rmNA", "count.factor", 
-	"find.idx", "classifyMatrixCPP", "L2DistCPP", "checkUniqueObsCPP", "crossEntropyCPP", "giniCPP", "L2InformationGainCPP",
-	"entropyInformationGainCPP", "runifMatrixCPP", "NATreatment"))
+	"find.idx", "classifyMatrixCPP", "L2DistCPP", "checkUniqueObsCPP", "crossEntropyCPP", "giniCPP", "L2InformationGainCPP", "entropyInformationGainCPP", "runifMatrixCPP", "NATreatment"))
 {
 	set.seed(sample(ntree,1))	
 	if ((rf.randomFeature) & (features == "random") ) { stop("random feature is a special case of mtry = 'random'") }
@@ -587,10 +609,10 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 	{
 		if (threads < 1) { stop("Number of threads must be positive") }
 	}
-	if (!is.matrix(trainData)) { trainData <- NAfactor2matrix(trainData) }
+	if (!is.matrix(trainData)) { trainData <- NAfactor2matrix(trainData, toGrep = "anythingParticular") }
 	if (!is.null(whichCatVariables)) 
 	{ 
-	  cat("Please also consider dummies for categorical variables or use formula\n")	
+	  cat("Considering use of Dummies (for example by using formula) for categorical variables might be an alternative.\n")	
 	}
 	{
 		if (!is.null(classwt)) 
@@ -605,10 +627,10 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 			{ stop ("X and Y don't have the same size.\n")	}	
 		}		
 		if (!is.matrix(trainData))
-		{ stop ("X cannot be converted to a matrix. Please provide true matrix not dataframe.") }		
-		if (rf.subagging == 0) { rf.subagging = 1 }		
-		if (rf.x.bagging) { features = min(features, ncol(trainData))  }
-		if ( (rf.subagging < 0.5) & (nrow(trainData) < 300) ) { rf.subagging = 0.5;  cat("Too small output matrix. Subsample rate has been set to 0.5.\n") }		
+		{ stop ("X cannot be converted to a matrix. Please provide true matrix not data frame.") }		
+		if (rf.treeSubsampleRate == 0) { rf.treeSubsampleRate = 1 }		
+		if (rf.treeBagging) { features = min(features, ncol(trainData))  }
+		if ( (rf.treeSubsampleRate < 0.5) & (nrow(trainData) < 300) ) { rf.treeSubsampleRate = 0.5;  cat("Too small output matrix. Subsample rate has been set to 0.5.\n") }		
 		if (!is.character(nodeMinSize))
 		{
 			if ( (nodeMinSize != 1) & (nodeMinSize >  floor(nrow(trainData)/4)) ) { stop("nodeMinSize is too high. Not suitable for a random forest.\n") }	
@@ -638,8 +660,8 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 		{	
 			if (rf.regression & (length(unique(trainLabels)) > 32)) 
 			{ 
-				if ((rf.subagging < 1) & (rf.bootstrap == TRUE))
-				{ cat("For only accuracy, use option 'subsamplerate = 1' and 'replace = FALSE' \n") }				
+				if ((rf.treeSubsampleRate < 1) & (rf.bootstrap == TRUE))
+				{ cat("For only accuracy, use option 'subsamplerate = 1' and 'replace = FALSE'\n") }				
 				classCutOff =  c(0,0) 				
 			}
 			else
@@ -677,7 +699,7 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 			}			
 			if (!is.null(classwt))
 			{ 	
-				if (length(classwt) != length(rf.classes)) { stop("Length of class weigths is not equal to length of classes.\n") }
+				if (length(classwt) != length(rf.classes)) { stop("Length of class weights is not equal to length of classes.\n") }
 			}
 		}
 		else
@@ -704,10 +726,11 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 				if (depthControl < 1)
 				{
 					depthControl = NULL
-					cat("Depth control option is lower than its range values. Resetting to default value.\n")
+					cat("'depthcontrol' option is lower than its lower bound. Resetting to default value.\n")
 				}				
 			}			
 		}
+		if (!rf.bootstrap & (rf.treeSubsampleRate == 1)) {  use.OOB = FALSE }
 	}
 	{
 		## require(parallel)	
@@ -731,42 +754,47 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 		chunkSize  <-  ceiling(ntree/getDoParWorkers())
 		smpopts  <- list(chunkSize = chunkSize)
 	}
-	if (!rf.bootstrap & (rf.subagging == 1)) {  use.OOB = FALSE }
+	rufObject = vector('list', ntree)
 	if (use.OOB)
 	{
-		rufObject <- foreach(i = 1:ntree, .export = export, .options.smp = smpopts, .inorder = FALSE, .multicombine = TRUE) %dopar%
+		rufObject <- foreach(i = 1:ntree, .export = export, .options.smp = smpopts, .inorder = FALSE, 
+		.multicombine = TRUE) %dopar%
 		{
-			uniformDecisionTree(trainData, trainLabels, nodeMinSize = nodeMinSize, maxNodes = maxNodes, rf.features = features, 
-			getSplitAt = splitAt, regression = rf.regression, bootstrap = rf.bootstrap, subagging = rf.subagging, treeDepth = depth, treeClasswt = classwt,	treeOverSampling = rf.overSampling, targetClass = rf.targetClass, OOB = use.OOB, 
-			treeRebalancedSampling = rf.rebalancedSampling, x.bagging = rf.x.bagging, random.combination = rf.randomCombination, 
-			randomFeature = rf.randomFeature, treeCatVariables = whichCatVariables, outputPerturbation = rf.outputPerturbationSampling, featureSelectionRule = rf.featureSelectionRule, treeDepthControl = depthControl, unsupervised = unsupervised)
+			uniformDecisionTree(trainData, trainLabels, nodeMinSize = nodeMinSize, maxNodes = maxNodes, 
+			treeFeatures = features, getSplitAt = splitAt, regression = rf.regression, bootstrap = rf.bootstrap, treeSubsampleRate = rf.treeSubsampleRate, treeDepth = depth, treeClasswt = classwt,
+			treeOverSampling = rf.overSampling, targetClass = rf.targetClass, OOB = use.OOB, 
+			treeRebalancedSampling = rf.rebalancedSampling, treeBagging = rf.treeBagging, 
+			randomFeature = rf.randomFeature, treeCatVariables = whichCatVariables, 
+			outputPerturbation = rf.outputPerturbationSampling, featureSelectionRule = rf.featureSelectionRule, treeDepthControl = depthControl, unsupervised = unsupervised)
 		}		
 		stopCluster(Cl)
 		{
 			OOB.matrix = NULL 
 			new.rufObject = vector("list", ntree)
 			new.rufObject$Tree = lapply(rufObject, function(Z) Z$Tree) 
-			for (i in 1:ntree) 	{	OOB.matrix <- rbind(OOB.matrix, cbind(rufObject[[i]]$OOB.idx, rep(i,length(rufObject[[i]]$OOB.idx))))  } 
+			for (i in 1:ntree) 	
+			{	OOB.matrix <- rbind(OOB.matrix, cbind(rufObject[[i]]$OOB.idx, rep(i,length(rufObject[[i]]$OOB.idx))))  } 
 			OOB.val = sort(unique(OOB.matrix[,1])) 
 			n.OOB = nrow(trainData) 
 			OOB.votes2 = matrix(Inf, n.OOB, ntree)			
 			if (is.null(classwt))
 			{
-				OOB.votes <- randomUniformForestCore.predict(new.rufObject$Tree, trainData, pr.regression = rf.regression, 
-				classes = rf.classes, OOB.idx = TRUE, pr.parallelPackage = parallelPackage[1], pr.imbalance = classCutOff, 
-				pr.threads = threads )				 
+				OOB.votes <- randomUniformForestCore.predict(new.rufObject$Tree, trainData, 
+					pr.regression = rf.regression, classes = rf.classes, OOB.idx = TRUE, 
+					pr.parallelPackage = parallelPackage[1], pr.imbalance = classCutOff, pr.threads = threads)			 
 				for (j in 1:ntree)
 				{
 					idxJ = which(OOB.matrix[,2] == j)
-					if (length(idxJ) > 0) 	{	OOB.votes2[OOB.matrix[idxJ,1],j] = OOB.votes[OOB.matrix[idxJ,1],j] 	}
+					if (length(idxJ) > 0) {	OOB.votes2[OOB.matrix[idxJ,1],j] = OOB.votes[OOB.matrix[idxJ,1],j] }
 				}
-				OOB.object <- majorityClass(OOB.votes2, rf.classes, m.imbalance = classCutOff, m.regression = rf.regression)
+				OOB.object <- majorityClass(OOB.votes2, rf.classes, m.imbalance = classCutOff, 
+					m.regression = rf.regression)
 			}
 			else
 			{
 				OOB.allWeightedVotes = matrix(Inf, n.OOB, ntree)
-				OOB.votes <- randomUniformForestCore.predict(new.rufObject$Tree, trainData, pr.regression = rf.regression, 
-				classes = rf.classes, pr.classwt = TRUE, OOB.idx = TRUE, pr.parallelPackage = parallelPackage[1], pr.imbalance = classCutOff, pr.threads = threads)						
+				OOB.votes <- randomUniformForestCore.predict(new.rufObject$Tree, trainData, 
+					pr.regression = rf.regression, classes = rf.classes, pr.classwt = TRUE, OOB.idx = TRUE, pr.parallelPackage = parallelPackage[1], pr.imbalance = classCutOff, pr.threads = threads)			
 				for (j in 1:ntree)
 				{
 					idxJ = which(OOB.matrix[,2] == j)
@@ -776,14 +804,14 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 						OOB.allWeightedVotes[OOB.matrix[idxJ,1],j] = OOB.votes$allWeightedVotes[OOB.matrix[idxJ,1],j]
 					}
 				}				
-				OOB.object <- majorityClass(OOB.votes2, rf.classes, m.classwt = OOB.allWeightedVotes, m.imbalance = classCutOff, 
-					m.regression = rf.regression)			
+				OOB.object <- majorityClass(OOB.votes2, rf.classes, m.classwt = OOB.allWeightedVotes, 
+					m.imbalance = classCutOff, m.regression = rf.regression)			
 			}			
 			OOB.pred = OOB.object$majority.vote
 			if (BreimanBounds)
 			{
-				strengthCorr.object <- strength_and_correlation(s.trainLabels = trainLabels, OOB.votes2, OOB.object, rf.classes, 
-					s.regression = rf.regression, s.parallelPackage = parallelPackage[1], s.threads = detectCores(logical = FALSE))
+				strengthCorr.object <- strength_and_correlation(s.trainLabels = trainLabels, OOB.votes2, 
+					OOB.object, rf.classes, s.regression = rf.regression, s.parallelPackage = parallelPackage[1], s.threads = detectCores(logical = FALSE))
 			}
 			if (rf.regression)
 			{  
@@ -794,9 +822,17 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 			}
 			else
 			{
-				OOB.pred = if ( min(trainLabels) == 0) { OOB.pred - 1 }  else { OOB.pred }				
-				OOB.confusion <- confusion.matrix(OOB.pred[OOB.val], trainLabels[OOB.val])
-				pred.error <- generalization.error(OOB.confusion)
+				if ( min(trainLabels) == 0) { OOB.pred = OOB.pred - 1 }			
+				if ( (length(unique(trainLabels[OOB.val])) == 1) | (length(unique(OOB.pred[OOB.val])) == 1) )
+				{	
+					OOB.confusion = "Minority class can not be predicted or OOB predictions contain only one label."
+					pred.error = "Minority class can not be predicted or OOB predictions contain only one label."
+				}
+				else
+				{
+					OOB.confusion <- confusion.matrix(OOB.pred[OOB.val], trainLabels[OOB.val])
+					pred.error <- generalization.error(OOB.confusion)
+				}
 			}
 		}
 		if (variableImportance)
@@ -827,27 +863,29 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 				if (BreimanBounds)
 				{
 					return(list(object = new.rufObject$Tree, OOB = OOB.confusion, OOB.predicts = as.numeric(OOB.pred), 
-					OOB.strengthCorr = strengthCorr.object, OOB.votes = OOB.votes2, pred.error = pred.error, regression = rf.regression) )
+						OOB.strengthCorr = strengthCorr.object, OOB.votes = OOB.votes2, pred.error = pred.error, 
+						regression = rf.regression) )
 				}
 				else
 				{
 					return(list(object = new.rufObject$Tree, OOB = OOB.confusion, OOB.predicts = as.numeric(OOB.pred), 
-					OOB.votes = OOB.votes2, pred.error = pred.error, regression = rf.regression) )
+						OOB.votes = OOB.votes2, pred.error = pred.error, regression = rf.regression) )
 				}					
 			}
 		}		
 	} 
 	else
 	{
-		rufObject = vector('list', ntree)			
 		# rufObject <- foreach(icount(ntree), .export = export, .options.smp  = smpopts, .inorder = FALSE, .multicombine = TRUE, .packages = "rUniformForestCppClass") %dopar%
 		rufObject <- foreach(i = 1:ntree, .export = export, .options.smp  = smpopts, .inorder = FALSE, .multicombine = TRUE) %dopar%
 		{	
-			uniformDecisionTree(trainData, trainLabels, nodeMinSize = nodeMinSize, maxNodes = maxNodes, rf.features = features, 
-				getSplitAt = splitAt, regression = rf.regression, bootstrap = rf.bootstrap, subagging = rf.subagging, treeDepth = depth, treeClasswt = classwt, treeOverSampling = rf.overSampling, targetClass = rf.targetClass, x.bagging = rf.x.bagging, treeRebalancedSampling = rf.rebalancedSampling, random.combination = rf.randomCombination, randomFeature = rf.randomFeature, treeCatVariables = whichCatVariables, outputPerturbation = rf.outputPerturbationSampling, 
-				featureSelectionRule = rf.featureSelectionRule, treeDepthControl = depthControl, unsupervised = unsupervised)$Tree
+			uniformDecisionTree(trainData, trainLabels, nodeMinSize = nodeMinSize, maxNodes = maxNodes, 
+			treeFeatures = features, getSplitAt = splitAt, regression = rf.regression, bootstrap = rf.bootstrap, treeSubsampleRate = rf.treeSubsampleRate, treeDepth = depth, treeClasswt = classwt, 
+			treeOverSampling = rf.overSampling, targetClass = rf.targetClass, treeBagging = rf.treeBagging, treeRebalancedSampling = rf.rebalancedSampling, randomFeature = rf.randomFeature, 
+			treeCatVariables = whichCatVariables, outputPerturbation = rf.outputPerturbationSampling, featureSelectionRule = rf.featureSelectionRule, treeDepthControl = depthControl, 
+			unsupervised = unsupervised)$Tree
 		}					
-		if (variableImportance) {	gen.rufObject = rufObject	}
+		if (variableImportance) { gen.rufObject = rufObject	}
 		else 
 		{	
 			stopCluster(Cl) 			
@@ -909,7 +947,8 @@ randomUniformForestCore <- function(trainData, trainLabels = 0,
 		{	colnames(var.imp.output) = c("variables", "score", "percent", "percent importance")	}
 		else
 		{	
-			colnames(var.imp.output) = c("variables", "score", "class", "class frequency", "percent", "percent importance")
+			colnames(var.imp.output) = c("variables", "score", "class", "class frequency", "percent", 
+				"percent importance")
 			row.names(var.imp.output) = NULL	
 		}		
 		var.imp.output = data.frame(var.imp.output)		
@@ -972,10 +1011,12 @@ rUniformForestPredict <- function(object, X,
 	{
 		if (length(object$variablesNames) != ncol(X)) 
 		{	
-			cat("data to predict have not the same dimension than data that have been computed by the model.\n Relevant variables have been extracted.\n")
+			cat("Data to predict have not the same dimension than data that have been computed by the model.\n Relevant variables have been extracted.\n")
 			newVars <- rmNA(match(object$variablesNames, colnames(X)))
 			if (length(newVars) == 0) 
-			{ stop("No relevant variable has been found. Please give to both train and test data the same column names.\n") }
+			{ 
+				stop("No relevant variable has been found. Please give to both train and test data the same column names.\n") 
+			}
 			X = X[,newVars, drop = FALSE]
 		}
 	}
@@ -997,8 +1038,9 @@ rUniformForestPredict <- function(object, X,
 			if ((as.numeric(classcutoff[2]) != 0) & (i == 1)) 
 			{  	
 				classcutoff <- c(which(classes == as.character(classcutoff[1])), 0.5/(as.numeric(classcutoff[2]))) 
-				if (length(classcutoff) == 1) { stop("Label not found. Please provide name of the label instead of its position") }
-				if (i > 1) { cat("Only last cutoff will be used in incremental random uniform forest.\n") }
+				if (length(classcutoff) == 1) 
+				{ stop("Label not found. Please provide name of the label instead of its position") }
+				if (i > 1) { cat("Only last cutoff will be used in incremental random Uniform Forest.\n") }
 			}		
 		}				
 		classwtString = as.vector(object$forestParams[which(row.names(object$forestParams) == "classwt"),i])	
@@ -1015,10 +1057,11 @@ rUniformForestPredict <- function(object, X,
 			{
 				random.combination = as.numeric(unlist(strsplit(randomCombinationString, ",")))
 				nbCombination = length(random.combination)/3
-				X <- randomCombination(NAfactor2matrix(X), combination = random.combination[1:(length(random.combination) - nbCombination)], 
+				X <- randomCombination(NAfactor2matrix(X, toGrep = "anythingParticular"), 
+					combination = random.combination[1:(length(random.combination) - nbCombination)], 
 					weights = random.combination[(length(random.combination) - nbCombination + 1):length(random.combination)])
 			}
-			else	{	cat("Only first random combination will be used in incremental random uniform forest.\n") 	}
+			else {	cat("Only first random combination will be used in incremental random uniform forest.\n") 	}
 		}
 	}	
 	r.threads = threads	
@@ -1104,8 +1147,7 @@ rUniformForestPredict <- function(object, X,
 	if (type[1] == "votes")  {	predictedObject = predObject$all.votes }	
 	if ( (type[1] == "prob") & (!object$regression) )
 	{	
-		numClasses = sort(unique(predObject$all.votes[,1]))
-		predictedObject = round(getVotesProbability2(predObject$all.votes, numClasses), 2) 
+		predictedObject = round(getVotesProbability2(predObject$all.votes, 1:length(classes)), 4) 
 		colnames(predictedObject) = classes
 	}	
 	if ( (type[1] == "prob") & (object$regression) ) { stop("Probabilities can not be computed for regression") }	
@@ -1231,8 +1273,7 @@ pr.imbalance = c(0,0),
 pr.regression = TRUE,
 pr.classwt = FALSE,  
 classes = -1,
-pr.export = c("onlineClassify", "predictDecisionTree", "majorityClass", "randomWhichMax", "rmNA", "mergeLists", "classifyMatrixCPP", 
-"L2DistCPP", "checkUniqueObsCPP", "crossEntropyCPP", "giniCPP", "L2InformationGainCPP",	"entropyInformationGainCPP", "runifMatrixCPP", "NATreatment"), 
+pr.export = c("onlineClassify", "predictDecisionTree", "majorityClass", "randomWhichMax", "rmNA", "mergeLists", "classifyMatrixCPP", "L2DistCPP", "checkUniqueObsCPP", "crossEntropyCPP", "giniCPP", "L2InformationGainCPP",	"entropyInformationGainCPP", "runifMatrixCPP", "NATreatment"), 
 pr.threads = "auto", 
 pr.parallelPackage = "doParallel")
 {
@@ -1250,11 +1291,11 @@ pr.parallelPackage = "doParallel")
 		}
 		else
 		{ 
-			X <- NAfactor2matrix(X)	
+			X <- NAfactor2matrix(X, toGrep = "anythingParticular")	
 			matchNA = (length(which(is.na(X))) > 0)		
 			if (matchNA) 
 			{ 
-				cat("NA found in data. Fast imputation (means) is used for missing values. Please use one of many models available if accuracy is needed\n Or use na.impute() function with the option 'na.action = accurateImpute'.")
+				cat("NA found in data. Fast imputation (means) is used for missing values. Please use one of many models available if accuracy is needed\n Or use na.impute() function with the option 'na.action = accurateImpute'.\n")
 				X <- na.impute(X)
 			}
 		}
@@ -1525,7 +1566,8 @@ monitorOOBError  <- function(OOB.votes, Y, regression = FALSE, threads = "auto",
 		S2 = classes[-S1][1]
 		
 		OOBmonitor <- foreach(j = 1:(p-1), 
-		.export = c("generalization.error", "confusion.matrix", "majorityClass", "rmNA"), .options.smp = smpopts, .combine = rbind) %dopar%
+		.export = c("generalization.error", "confusion.matrix", "majorityClass", "rmNA", "randomWhichMax"), 
+		.options.smp = smpopts, .combine = rbind) %dopar%
 		{
 			Estimate <- generalization.error(confusion.matrix(majorityClass(OOB.votes[,1:(j+1)], classes)$majority.vote, Y))
 			C1 <- generalization.error(confusion.matrix(majorityClass(OOB.votes[,1:(j+1)], classes, m.imbalance =c(1, 1.5))$majority.vote, Y))
@@ -1541,8 +1583,7 @@ monitorOOBError  <- function(OOB.votes, Y, regression = FALSE, threads = "auto",
 	}
 	else
 	{
-		OOBmonitor <- foreach(j = 1:(p-1), .export = c("generalization.error", "confusion.matrix", "majorityClass", "rmNA", "L2Dist", "L1Dist"), 
-			.options.smp = smpopts, .combine = c) %dopar%
+		OOBmonitor <- foreach(j = 1:(p-1), .export = c("generalization.error", "confusion.matrix", "majorityClass", "rmNA", "L2Dist", "L1Dist"), .options.smp = smpopts, .combine = c) %dopar%
 		{
 			Z = majorityClass(OOB.votes[,1:(j+1)], 0, m.regression = TRUE)$majority.vote
 			NAIdx = which(is.na(Z))
@@ -1883,7 +1924,7 @@ importance.randomUniformForest <- function(object, maxVar = 30, maxInteractions 
 		{		
 			Xfactors <- which.is.factor(Xtest)
 			catVarIdx <- which(rownames(object$paramsObject) == "categorical variables")
-			Xtest = NAfactor2matrix(Xtest)
+			Xtest = NAfactor2matrix(Xtest, toGrep = "anythingParticular")
 			matchNA = (length(which(is.na(Xtest))) > 0)				
 			if (matchNA) 
 			{ 
@@ -2195,8 +2236,11 @@ maxClasses = if (is.null(whichFeature)) { 10 } else { max(10, which.is.factor(Xt
 	{  return(partialDependenceMatrix)  }
 }	
 
-partialDependenceBetweenPredictors <- function(Xtest, importanceObject, features, whichOrder = c("first", "second", "all"), 
-perspective = FALSE, outliersFilter = FALSE, maxClasses = max(10, which.is.factor(Xtest[,features, drop = FALSE], count = TRUE)))
+partialDependenceBetweenPredictors <- function(Xtest, importanceObject, features, 
+whichOrder = c("first", "second", "all"), 
+perspective = FALSE, 
+outliersFilter = FALSE, 
+maxClasses = max(10, which.is.factor(Xtest[,features, drop = FALSE], count = TRUE)))
 {
 	Variable1 = Variable2 = SameClass = ..level.. = Response = NULL
 	if (length(features) != 2) { stop("Please provide two features.") }	
@@ -2584,7 +2628,8 @@ plot.importance <- function(x, nGlobalFeatures = 30, nLocalFeatures = 5, Xtest =
 	if (n > maxVar) { varImportance = varImportance[1:maxVar,] }
 	else { maxVar = n}	
 	par(las = 1)
-	maxChar = floor(2 + max(nchar(as.character(object$globalVariableImportance[,1])))/2)
+	maxChar = if (nLocalFeatures >= 10) { 11 } 
+	else { floor(2 + max(nchar(as.character(object$globalVariableImportance[,1])))/2) }
 	par(mar = c(5, maxChar + 1,4,2))
 	barplot(varImportance[maxVar:1,"percent.importance"], horiz = TRUE, col = sort(heat.colors(maxVar), decreasing = TRUE), border = border,
 	names.arg = varImportance[maxVar:1,"variables"], xlab = "Relative influence (%)", main = "Variable importance based on information gain")
@@ -2737,7 +2782,7 @@ rankingTrainData <- function(trainData = NULL, trainLabels = NULL,  testData = N
 	i = 1;	rmIdx = NULL; idx = 1:nrow(testData)
 	while  ( (i <= nTimes)  & (length(testData[,1]) >= 1) )
 	{
-		rUF <- randomUniformForestCore(trainData, trainLabels = as.factor(trainLabels), ntree = ntree, use.OOB = FALSE, rf.overSampling = -0.75, rf.targetClass = majorityClass, rf.subagging = 2/3)
+		rUF <- randomUniformForestCore(trainData, trainLabels = as.factor(trainLabels), ntree = ntree, use.OOB = FALSE, rf.overSampling = -0.75, rf.targetClass = majorityClass, rf.treeSubsampleRate = 2/3)
 		predictRUF <- randomUniformForestCore.predict(rUF, testData)	
 		tmpScore = tmpScore + apply(predictRUF$all.votes, 1, function(Z)  length(which(Z != majorityClass)))
 		score[idx] = score[idx] + tmpScore								
@@ -2838,7 +2883,9 @@ plotTree <- function(treeStruct, rowNum = 1, height.increment = 1, maxDepth = 10
 }
 
 fillNA2.randomUniformForest <- function(X, Y = NULL, ntree = 100, mtry = 1, nodesize = 10, 
-categoricalvariablesidx = NULL, NAgrep = "", maxClasses = floor(0.01*min(3000, nrow(X))+2), threads = "auto")
+categoricalvariablesidx = NULL, NAgrep = "", 
+maxClasses = floor(0.01*min(3000, nrow(X))+2), 
+threads = "auto")
 {	
     i = NULL 
 	if ((ntree > 100) & (nodesize == 1))
@@ -2850,9 +2897,9 @@ categoricalvariablesidx = NULL, NAgrep = "", maxClasses = floor(0.01*min(3000, n
 	X <- fillVariablesNames(X)	
 	if (!is.null(Y)) { trueY = Y }
 	limitSize = if (n > 2000) { 50 } else { max(nodesize, 10) } 
+	trueX = X
 	if (!is.matrix(X))
 	{	
-		trueX = X
 		flag = TRUE
 		X.factors <- which.is.factor(X, maxClasses = maxClasses)
 		X <- NAfactor2matrix(X, toGrep = NAgrep)
@@ -2913,7 +2960,7 @@ categoricalvariablesidx = NULL, NAgrep = "", maxClasses = floor(0.01*min(3000, n
 			chunkSize <- ceiling(nFeatures/getDoParWorkers())
 			smpopts  <- list(chunkSize = chunkSize)
 		}				
-		export = c("randomUniformForest.default", "rUniformForest.big", "randomUniformForestCore.big", "randomUniformForestCore", "predict.randomUniformForest", "rUniformForestPredict", "uniformDecisionTree", "CheckSameValuesInAllAttributes", "CheckSameValuesInLabels", "fullNode", "genericNode", "leafNode", "filter.object", "filter.forest", "randomUniformForestCore.predict", "onlineClassify", "overSampling", "predictDecisionTree", "options.filter", "majorityClass", "randomCombination", "randomWhichMax", "vector2matrix", "which.is.na", "which.is.factor", "factor2vector", "outputPerturbationSampling", "rmNA", "count.factor", "find.idx", "genericOutput", "fillVariablesNames", "is.wholenumber", "rm.tempdir", "setManyDatasets", "onlineCombineRUF", "mergeLists", "classifyMatrixCPP", "L2DistCPP", "checkUniqueObsCPP", "crossEntropyCPP", "giniCPP", "L2InformationGainCPP", "entropyInformationGainCPP", "runifMatrixCPP", "NAfactor2matrix", "factor2matrix", "as.true.matrix", "NAFeatures", "NATreatment")
+		export = c("randomUniformForest.default", "rUniformForest.big", "randomUniformForestCore.big", "randomUniformForestCore", "predict.randomUniformForest", "rUniformForestPredict", "uniformDecisionTree", "CheckSameValuesInAllAttributes", "CheckSameValuesInLabels", "fullNode", "genericNode", "leafNode", "filter.object", "filter.forest", "randomUniformForestCore.predict", "onlineClassify", "overSampling", "predictDecisionTree", "options.filter", "majorityClass", "randomCombination", "randomWhichMax", "vector2matrix", "which.is.na", "which.is.factor", "factor2vector", "outputPerturbationSampling", "rmNA", "count.factor", "find.idx", "genericOutput", "fillVariablesNames", "is.wholenumber", "rm.tempdir", "setManyDatasets", "onlineCombineRUF", "mergeLists", "classifyMatrixCPP", "L2DistCPP", "checkUniqueObsCPP", "crossEntropyCPP", "giniCPP", "L2InformationGainCPP", "entropyInformationGainCPP", "runifMatrixCPP", "NAfactor2matrix", "factor2matrix", "as.true.matrix", "NAFeatures", "NATreatment", "rmInf")
 		if (nrow(X) < 2001)
 		{
 			newX <- foreach( i= 1:nFeatures, .options.smp = smpopts, .inorder = FALSE, .combine = cbind, 
@@ -2944,13 +2991,14 @@ categoricalvariablesidx = NULL, NAgrep = "", maxClasses = floor(0.01*min(3000, n
 		}
 		else
 		{
-			newX <- foreach(i = 1:nFeatures, .options.smp = smpopts, .inorder = FALSE, .combine = cbind, .multicombine = TRUE, .export = export) %dopar%
+			newX <- foreach(i = 1:nFeatures, .options.smp = smpopts, .inorder = FALSE, .combine = cbind, 
+			.multicombine = TRUE, .export = export) %dopar%
 			{
 				if (X.factors[processedFeatures[i]] == 1)
 				{
 					rufObject <- rUniformForest.big(X[-idx[[i]],-processedFeatures[i]], Y = as.factor(X[-idx[[i]], 
-						processedFeatures[i]]), nforest = max(1, floor(nrow(X[-idx[[i]],])/2000)), replacement = TRUE, randomCut = TRUE, 
-						OOB = FALSE, importance = FALSE, ntree = ntree, mtry = mtry, nodesize = nodesize, threads = 1, categoricalvariablesidx =  categoricalvariablesidx)
+						processedFeatures[i]]), nforest = max(1, floor(nrow(X[-idx[[i]],])/2000)), replacement = TRUE, randomCut = TRUE, OOB = FALSE, importance = FALSE, ntree = ntree, mtry = mtry, 
+						nodesize = nodesize, threads = 1, categoricalvariablesidx =  categoricalvariablesidx)
 							
 					X[idx[[i]], processedFeatures[i]] <- as.numeric(as.vector(predict.randomUniformForest(rufObject, 
 						X[idx[[i]], -processedFeatures[i]])))
@@ -2965,7 +3013,8 @@ categoricalvariablesidx = NULL, NAgrep = "", maxClasses = floor(0.01*min(3000, n
 					X[idx[[i]], processedFeatures[i]] <- predict.randomUniformForest(rufObject, X[idx[[i]], -processedFeatures[i]])	
 				}
 							
-				if (mean(is.wholenumber(rmNA(X[-idx[[i]], processedFeatures[i]]))) == 1) {  round(X[,processedFeatures[i]]) }
+				if (mean(is.wholenumber(rmNA(X[-idx[[i]], processedFeatures[i]]))) == 1) 
+				{  round(X[,processedFeatures[i]]) }
 				else  {  X[,processedFeatures[i]]  }	
 			}
 			X[,processedFeatures] = newX
@@ -2981,15 +3030,40 @@ categoricalvariablesidx = NULL, NAgrep = "", maxClasses = floor(0.01*min(3000, n
 				k = factorsIdx[j]
 				X[,k] = as.factor(X[,k])
 				Xlevels = as.numeric(names(table(X[,k])))
-				levels(X[,k]) = levels(as.factor(trueX[,k]))[1:length(Xlevels)]
+				asFactorTrueX_k = as.factor(trueX[,k])
+				oldLevels = levels(asFactorTrueX_k)
+				for (i in 1:length(NAgrep))
+				{
+					levelToRemove = which(oldLevels == NAgrep[i])
+					if (length(levelToRemove) > 0) 
+					{ 
+						if (NAgrep[i] == "")
+						{	levels(X[,k]) = c("virtualClass", oldLevels[-levelToRemove])	}
+						else
+						{  levels(X[,k]) = oldLevels[-levelToRemove] }
+					}
+					else 
+					{ 
+						checkLevel = sample(Xlevels,1)
+						if ((!is.numeric(trueX[,k])) & (checkLevel > 0) & (is.wholenumber(checkLevel)))
+						{ levels(X[,k]) = oldLevels[Xlevels] }
+					}
+				}
 			}				
 		}
+		for (j in 1:ncol(X))
+		{
+			classTrueX = class(trueX[,j])
+			if ((classTrueX) == "character") X[,j] = as.character(X[,j])
+		}	
 		return(X)
 	}
 }
 
 # unsupervised Learning = unsupervised2supervised + rUF model + proximity + MDSscale (+ gap) + kmeans 
-unsupervised2supervised <- function(X, method = c("uniform univariate sampling", "uniform multivariate sampling"), bootstrap = FALSE)
+unsupervised2supervised <- function(X, method = c("uniform univariate sampling", "uniform multivariate sampling"),
+seed = 2014, 
+bootstrap = FALSE)
 {
 	np = dim(X); n = np[1]; p = np[2]
 	flag = FALSE
@@ -2997,19 +3071,19 @@ unsupervised2supervised <- function(X, method = c("uniform univariate sampling",
 	if (!is.null(rownames(X))) { rowNamesX = rownames(X); flag = TRUE }
 	if (is.data.frame(X))
 	{	
-		X = NAfactor2matrix(X) 
+		X = NAfactor2matrix(X, toGrep = "anythingParticular") 
 		cat("X is a data frame and has been converted to a matrix.\n")
 	}
 	
 	XX = matrix(data = NA, nrow = n, ncol = p)
 	
+	set.seed(seed)
 	if (method[1] == "uniform univariate sampling")
 	{	XX <- apply(X, 2, function(Z) sample(Z, n, replace = bootstrap))  }
 	else
 	{
 		for (j in 1:p)
 		{
-			set.seed(sample(1e9,1))
 			XX[,j] = sample(X, n, replace = bootstrap)
 			
 			outOfRange = which( (XX[,j] > max(X[,j])) | (XX[,j] < min(X[,j])) )
@@ -3130,8 +3204,9 @@ proximitiesMatrix <- function(object, fullMatrix = TRUE, Xtest = NULL, predObjec
 	
 kBiggestProximities <- function(proximitiesMatrix, k) t(apply(proximitiesMatrix, 1, function(Z) sort(Z, decreasing = TRUE)[1:(k+1)][-1] ))
 
-MDSscale <- function(proximitiesMatrix, metric = c("metricMDS", "nonMetricMDS"), dimension = 2,  distance = TRUE, plotting = TRUE)
+MDSscale <- function(proximitiesMatrix, metric = c("metricMDS", "nonMetricMDS"), dimension = 2,  distance = TRUE, plotting = TRUE, seed = 2014)
 {
+	set.seed(seed)
 	if (metric[1] == "metricMDS")  
 	{ 
 		if (distance)  { d = stats::dist(1 - proximitiesMatrix) }
@@ -3166,14 +3241,16 @@ MDSscale <- function(proximitiesMatrix, metric = c("metricMDS", "nonMetricMDS"),
 	return(fit)
 }
 
-gap.stats <- function(fit, B = 100, maxClusters = 5)
+gap.stats <- function(fit, B = 100, maxClusters = 5, seed = 2014)
 {
 	#require(cluster)
+	set.seed(seed)
 	return(cluster::clusGap(fit, FUN = kmeans, K.max = max(2, maxClusters), B = B))	
 }
 
-kMeans <- function(fit, gapStatFit, maxIters = 10, plotting = TRUE, algorithm = NULL, k = NULL, reduceClusters = FALSE)
+kMeans <- function(fit, gapStatFit, maxIters = 10, plotting = TRUE, algorithm = NULL, k = NULL, seed = 2014,reduceClusters = FALSE)
 {
+	set.seed(seed)
 	if (is.null(maxIters)) { maxIters = 10 }
 	if (is.null(algorithm)) { algorithm = "Hartigan-Wong" }
 	
@@ -3217,8 +3294,9 @@ kMeans <- function(fit, gapStatFit, maxIters = 10, plotting = TRUE, algorithm = 
 	return(fit.kMeans)
 }
 
-hClust <- function(proximities, method = NULL, plotting = TRUE, k = NULL, reduceClusters = FALSE)
+hClust <- function(proximities, method = NULL, plotting = TRUE, k = NULL, reduceClusters = FALSE, seed = 2014)
 {
+	set.seed(seed)
 	if (is.null(method)) { method = "complete" }
 	d <- stats::dist(1 - proximities)
 	XClust <- stats::hclust(d, method = method,  members = NULL)
@@ -3300,15 +3378,14 @@ print.unsupervised <- function(x, ...)
 	{
 		x = object$MDSModel$points[,1]
 		y = object$MDSModel$points[,2]
-		percentExplained = (interClassesVariance(x, Z) +  interClassesVariance(y, Z))/(variance(x) + variance(y))
+		percentExplained = (interClassesVariance(x, Z) + interClassesVariance(y, Z))/(variance(x) + variance(y))
 		
-		cat("Average variance between clusters (in percent of total variance): ", round(100*percentExplained,2), "%\n", sep = "")
-				
+		cat("Average variance between clusters (in percent of total variance): ", round(100*percentExplained,2), "%\n", sep = "")				
 		cat("Average silhouette: ", round(mean(cluster::silhouette(as.numeric(Z), dist(object$MDSModel$points))[,3]),4), "\n",  sep = "")
 		cat("Clusters size:\n")
 		print(ZZ)
-		cat("Clusters centers (in the MDS coordinates):\n") 
-		print(round(object$unsupervisedModel$centers,4))		
+		cat("Cluster centers (in the MDS coordinates):\n") 
+		print(round(object$unsupervisedModel$centers, 4))		
 	}
 		
 	if (object$params["endModel"] == "MDSkMeans")
@@ -3318,7 +3395,7 @@ print.unsupervised <- function(x, ...)
 		cat("Average silhouette: ", round(mean(cluster::silhouette(Z, dist(object$MDSModel$points))[,3]),4), "\n",  sep = "")
 		cat("Clusters size:\n")
 		print(ZZ)
-		cat("Clusters centers (in the MDS coordinates):\n") 
+		cat("Cluster centers (in the MDS coordinates):\n") 
 		print(round(object$unsupervisedModel$centers,4))		
 	}
 	
@@ -3330,7 +3407,8 @@ print.unsupervised <- function(x, ...)
 		percentExplained1 = interClassesVariance(x, Z)/variance(x)
 		percentExplained2 = interClassesVariance(y, Z)/variance(y)
 		percentExplained  = round(0.5*(percentExplained1 + percentExplained2), 4)				
-		cat("Average variance between clusters (in percent of total variance) : ", percentExplained*100, "%\n", sep = "")
+		cat("Average variance between clusters (in percent of total variance) : ", percentExplained*100, "%\n", 
+		sep = "")
 		
 		cat("Average silhouette : ", round(mean(cluster::silhouette(Z, dist(object$MDSModel$points))[,3]),4), "\n",  sep = "")
 		cat("Clusters size:\n")
@@ -3391,7 +3469,7 @@ plot.unsupervised <- function(x, importanceObject = NULL, xlim = NULL, ylim = NU
 		diffHeightsIdx = which.max(diff(XClust$height))
 		height = (XClust$height[diffHeightsIdx] +  XClust$height[diffHeightsIdx-1])/2				
 		showLabels = if (nrow(object$proximityMatrix) < 300) { TRUE } else { FALSE }
-		plot(XClust)
+		plot(XClust, labels = showLabels)
 		abline(h = height , col='red') 
 		
 		# A2Rplot(object$unsupervisedModel$object, k = nbClusters, boxes = TRUE, show.labels = FALSE, 
@@ -3419,7 +3497,8 @@ plot.unsupervised <- function(x, importanceObject = NULL, xlim = NULL, ylim = NU
 	{ 	
 		clusterNames = rm.string(colnames(clusterFeatures), "Class ")
 		legend("topright", inset = .01, clusterNames, fill = 1:i, horiz = FALSE, border = NA, bty ="n")
-		legend("bottomleft", cex = 0.7, as.character(clusterFeaturesNames), fill = 1:i, horiz = TRUE, border = NA, bty ="n")		
+		legend("bottomleft", cex = 0.7, as.character(clusterFeaturesNames), fill = 1:i, horiz = FALSE, 
+		border = NA, bty = "n")		
 		print(clusterFeatures)		
 	}
 	else
@@ -3427,7 +3506,7 @@ plot.unsupervised <- function(x, importanceObject = NULL, xlim = NULL, ylim = NU
 	
 }
 
-modifyClusters <- function(object, decreaseBy = NULL, increaseBy = NULL)
+modifyClusters <- function(object, decreaseBy = NULL, increaseBy = NULL, seed = 2014)
 {
 	params = object$modelParams
 	endModel = object$params["endModel"]
@@ -3449,17 +3528,20 @@ modifyClusters <- function(object, decreaseBy = NULL, increaseBy = NULL)
 	}
 	else
 	{
-	
-		endModelMetric = if (object$params["endModelMetric"] == "NULL") { NULL } else { object$params["endModelMetric"] }
+		endModelMetric = if (object$params["endModelMetric"] == "NULL") { NULL } 
+						else { object$params["endModelMetric"] }
 		
 		if (endModel == "MDSkMeans")
 		{
 			maxIters = if (object$params["maxIters"] == "NULL") { 10 } else { as.numeric(object$params["maxIters"]) }
-			X.model <- kMeans(object$MDSModel$points, NULL, k = k, maxIters = maxIters, algorithm = endModelMetric, plotting = FALSE, reduceClusters = FALSE)		
+			X.model <- kMeans(object$MDSModel$points, NULL, k = k, maxIters = maxIters, algorithm = endModelMetric, plotting = FALSE, reduceClusters = FALSE, seed = seed)		
 		}
 		
-		if (endModel == "MDShCluster")
-		{	X.model <- hClust(object$MDSModel$points, method = endModelMetric, plotting = FALSE, k = k, reduceClusters = FALSE)	 }
+		if (endModel == "MDShClust")
+		{	
+			X.model <- hClust(object$MDSModel$points, method = endModelMetric, plotting = FALSE, k = k, 
+			reduceClusters = FALSE, seed = seed)	 
+		}
 		object$unsupervisedModel = NULL
 		object$unsupervisedModel = X.model  
 		object$nbClusters = k
@@ -3533,19 +3615,16 @@ as.supervised <- function(object, X, ...)
 	return(rUFObject)	
 }
 
-
 unsupervised.randomUniformForest <- function(object, 
-baseModel = c("proximity", "proximityThenDistance",  "importanceThenDistance"),
+baseModel = c("proximity", "proximityThenDistance", "importanceThenDistance"),
 endModel = c("MDSkMeans", "MDShClust", "MDS"),
 endModelMetric = NULL,
 samplingMethod = c("uniform univariate sampling", "uniform multivariate sampling", "with bootstrap"),
 MDSmetric = c("metricMDS", "nonMetricMDS"),
-computeFullMatrix = TRUE,
 proximityMatrix = NULL,
 outliersFilter = FALSE, 
 Xtest = NULL, 
 predObject = NULL, 
-nBiggestProximities = NULL,
 metricDimension = 2, 
 coordinates = c(1,2),
 bootstrapReplicates = 100,
@@ -3556,7 +3635,8 @@ maxInteractions = 2,
 reduceClusters = FALSE, 
 maxClusters = 5,
 mapAndReduce = FALSE,
-OOB = FALSE, 
+OOB = FALSE,
+seed = 2014,
 uthreads = "auto",
 ...)
 {
@@ -3568,27 +3648,39 @@ uthreads = "auto",
 	
 	if (!is.null(Xtest)) 
 	{ 	
-		Xtest = NAfactor2matrix(Xtest)
+		Xtest = NAfactor2matrix(Xtest, toGrep = "anythingParticular")
 		if (length(which(is.na(Xtest)) > 0) ){ stop("NA found in data. Please treat them outside the model.\n") }
 	}
 	
+	flagBig = FALSE
 	objectClass = class(object)
-	if (objectClass != "randomUniformForest")
+	if ( all(objectClass != "randomUniformForest") )
 	{
 		X = object
 		n = nrow(X)
-		#if (n > 100000) { stop("Please use unsupervised.combine() function to combine unsupervised models based on chunks of data")
+		
+		if ( (n > 2000) | mapAndReduce) 
+		{
+			set.seed(sample(1e9,1))
+			subsetIdx = sample(n, min(2000, floor(n/2)))
+			bigX = X[-subsetIdx, ]
+			X = X[subsetIdx,]
+			n = nrow(X)
+			flagBig  = TRUE
+		}
 		
 		if (samplingMethod[1] == "with bootstrap")
 		{ 
 			cat("'with bootstrap' is only needed as the second argument of 'method' option. Default option will be computed.\n")
 			samplingMethod[1] = "uniform univariate sampling"
 		}
-		XY <- unsupervised2supervised(X, method = samplingMethod[1], bootstrap = if (length(samplingMethod) > 1) { TRUE } else {FALSE })
+		XY <- unsupervised2supervised(X, method = samplingMethod[1], seed = seed,
+			bootstrap = if (length(samplingMethod) > 1) { TRUE } else {FALSE })
 		
-		if ((n > 10000) | mapAndReduce)
+		cat("Created synthetic data giving them labels.\n") 
+		if ((n > 2000) | mapAndReduce)
 		{	
-			rUF.model <- rUniformForest.big(XY$X, as.factor(XY$Y), BreimanBounds = FALSE, unsupervised = TRUE, unsupervisedMethod = samplingMethod[1], nforest = max(2, floor(n/5000)), randomCut = TRUE,...)  
+			rUF.model <- rUniformForest.big(XY$X, as.factor(XY$Y), BreimanBounds = FALSE, unsupervised = TRUE, unsupervisedMethod = samplingMethod[1], randomCut = TRUE,...)  
 		}
 		else
 		{ 	
@@ -3600,48 +3692,33 @@ uthreads = "auto",
 	}
 	else
 	{	
-		if (objectClass == "randomUniformForest") { rUF.model = object	}
-		else { stop("data are missing or object is not of class randomUniformForest.") }
+		if (any(objectClass == "randomUniformForest")) { rUF.model = object	}
+		else { stop("Data are missing or object is not of class randomUniformForest.") }
 		n = if (is.null(object$unsupervised)) { length(object$y) } else {  length(object$y)/2 }
 	}
-	
-	if (!is.null(Xtest)) { n = nrow(Xtest) }
 		
-	operatorLimit = 3*800*n^2/(10000^2)
-	export = c("proximitiesMatrix", "filter.object", "uniformDecisionTree", "randomUniformForestCore.predict", "onlineClassify",  "predictDecisionTree", "factor2vector", "outputPerturbationSampling", "rmNA", "count.factor", "predict.randomUniformForest", "rUniformForestPredict", "fillVariablesNames", "NAfactor2matrix", "factor2matrix", "as.true.matrix", "filter.forest", "majorityClass", "na.impute", "na.replace", "which.is.factor", "modX", "NATreatment")
-	
+	if (!is.null(Xtest)) 
+	{ 
+		n = nrow(Xtest)
+		if ( ((n > 2000) | mapAndReduce) & !flagBig ) 
+		{
+			subsetIdx = sample(n, min(2000, floor(n/2)))
+			bigX = Xtest[-subsetIdx, ]
+			Xtest = Xtest[subsetIdx,]
+			n = nrow(Xtest)
+			flagBig  = TRUE
+		}		
+	}	
+			
 	if (baseModel[1] != "importanceThenDistance")
 	{
 		if (is.null(proximityMatrix))
 		{
-			if ( (memory.limit() < operatorLimit) | (n > 2000) | mapAndReduce )
-			{
-				chunks = max(4, floor(n/2000))
-				XList = vector('list', chunks)
-				cutOffs = cut(1:n, chunks, labels = FALSE)
-				Xtest = NAfactor2matrix(Xtest)
-				for (i in 1:chunks)
-				{
-					idx = which(cutOffs == i)
-					XList[[i]] = Xtest[idx,]
-				}
-					
-				#proxMat = matrix(0, n, length(rUF.model$forest$object))
-				proxMatList <- lapply(XList, function(Z) proximitiesMatrix(rUF.model, fullMatrix = FALSE, Xtest = Z, 
-					predObject = predObject, pthreads =  uthreads))
-				
-				proxMat = NULL
-				for (i in 1:length(	proxMatList))
-				{	proxMat = rbind(proxMat, proxMatList[[i]]) }
-				rm(proxMatList)
-			}
-			else
-			{	
-				proxMat <- proximitiesMatrix(rUF.model, fullMatrix = computeFullMatrix, Xtest = Xtest, predObject = predObject, pthreads =  uthreads) 
-			}
+			proxMat <- proximitiesMatrix(rUF.model, fullMatrix = TRUE, Xtest = Xtest, 
+			predObject = predObject, pthreads =  uthreads) 
 		}
 		else
-		{ proxMat <- proximityMatrix }
+		{ proxMat = proximityMatrix }
 	}
 	else
 	{
@@ -3651,68 +3728,52 @@ uthreads = "auto",
 	}
 	
 	p = ncol(proxMat)
-	if ( ((p !=  nrow(proxMat)) | mapAndReduce)  &  is.null(nBiggestProximities)) { nBiggestProximities = 10 }
-	if (!is.null(nBiggestProximities)) { proxMat =  kBiggestProximities(proxMat, min(nBiggestProximities, p)) }
-		
+	
 	grepMDS = length(grep("MDS", endModel[1]))
 	if (grepMDS == 1)
 	{
-		flagParallel = FALSE
-		if (n > 2000) 	{ 	flagParallel = TRUE 	}
-		
 		distanceProxy = TRUE
 		if (baseModel[1] == "proximity") { 	distanceProxy = FALSE }		
-		if (flagParallel)
+		X.scale <- MDSscale(proxMat, metric = MDSmetric[1], dimension = metricDimension, distance = distanceProxy, plotting = FALSE, seed = seed)
+		
+		Z = X.scale$points[, ,drop = FALSE]
+		
+		if (dim(Z)[2] == 0) 
+		stop ("MDS can not be achieved. Data can probably be not clustered using a (randomUniformForest) dissimilarity matrix.\n")
+
+		if (flagBig)
 		{
-			chunks = floor(n/1000)
-			proxMatList = vector('list', chunks)
-			cutOffs = cut(1:n, chunks, labels = FALSE)
-			for (i in 1:chunks)
+			pZ = ncol(Z)
+			X.scale.ruf = vector('list', pZ)
+			newZ = matrix(NA, nrow(Z) + nrow(bigX), pZ)
+			if (mapAndReduce)
 			{
-				idx = which(cutOffs == i)
-				if (p == n) {  proxMatList[[i]] = proxMat[idx, idx] }
-				else { proxMatList[[i]] = proxMat[idx, ]  }
-			}
-			
-			#require(parallel)	
-			max_threads = detectCores()
-			
-			if (uthreads == "auto")
-			{	
-				if (max_threads == 2) { uthreads = max_threads }
-				else {	uthreads = max(1, max_threads - 1)  }
+				cat("Entered in regression mode to learn MDS points.\n")
+				for (i in 1:pZ)	
+				{ 
+					X.scale.ruf[[i]] = rUniformForest.big(X, Z[,i], randomCut = TRUE,...) 	
+					newZ[subsetIdx,i] = predict(X.scale.ruf[[i]], bigX)
+					newZ[-subsetIdx,i] = Z[,i]
+				}
 			}
 			else
 			{
-				if (max_threads < uthreads) 
-				{	cat("Note : number of threads is higher than logical threads in this computer.\n") }
+				for (i in 1:pZ)	
+				{ 
+					X.scale.ruf[[i]] = randomUniformForest(X, Z[,i], ...) 
+					newZ[subsetIdx,i] = predict(X.scale.ruf[[i]], bigX)
+					newZ[-subsetIdx,i] = Z[,i]
+				}			
 			}
-			
-			#require(doParallel)	
-			Cl = makePSOCKcluster(uthreads, type = "SOCK")
-			registerDoParallel(Cl)
-			
-			export2 = c("dist", "MDSscale", "mergeLists")
-
-			X.scale <- foreach(i = 1:chunks, .export = export2, .packages = c("stats", "MASS"), .combine = "mergeLists") %dopar%
-			{					
-				MDSobject <- MDSscale(proxMatList[[i]], metric = MDSmetric[1], dimension = metricDimension, distance = distanceProxy, 
-				plotting = FALSE)  
-								
-				MDSobject
-			}			
-			stopCluster(Cl)
-		}	
-		else
-		{	X.scale <- MDSscale(proxMat, metric = MDSmetric[1], dimension = metricDimension, distance = distanceProxy, plotting = FALSE)  }
-		
-		Z = X.scale$points
+			Z = newZ
+		}
+				
 		nn = nrow(Z)
 		if (endModel[1] == "MDS") { outliersFilter = FALSE }
 		if (outliersFilter)
 		{
-			idx1 = which(  (Z[,1] < quantile(Z[,1], 0.05)) & (Z[,2] < quantile(Z[,2], 0.05)) ) 
-			idx2 = which( (Z[,1] > quantile(Z[,1], 0.95)) & (Z[,2] > quantile(Z[,2], 0.95)))
+			idx1 = which( (Z[,1] < quantile(Z[,1], 0.025)) & (Z[,2] < quantile(Z[,2], 0.025)) ) 
+			idx2 = which( (Z[,1] > quantile(Z[,1], 0.975)) & (Z[,2] > quantile(Z[,2], 0.975)))
 			idx12 = c(idx1, idx2)
 			if (length(idx12) > 0)	{ Z = Z[-idx12,]  }
 			nn = nrow(Z)
@@ -3743,18 +3804,19 @@ uthreads = "auto",
 					
 					classes = sort(unique(predictions))
 					k = length(classes)
-					centers = matrix(0, k, ncol(X.scale$points))
+					centers = matrix(0, k, ncol(Z))
 					for (i in 1:k)
 					{	
 						idx = which(predictions == classes[i])
-						centers[i,] = colMeans(X.scale$points[idx,])
-					}
+						centers[i,] = colMeans(Z[idx,])
+					}						
+					
 					rownames(centers) = as.character(classes)
 					X.model = list(cluster = predictions, centers = centers)
 				}
 				else
 				{
-					cat("clustering is not done in this mode except in the supervised mode.\nPlease send ...$MDSModel$points to a clustering algorithm.\n")
+					cat("Clustering can not be done except in the supervised mode.\nPlease send ...$MDSModel$points to a clustering algorithm.\n")
 					X.model = list(cluster = NULL, centers = NULL)
 				}
 			}			
@@ -3762,16 +3824,18 @@ uthreads = "auto",
 			if (endModel[1] == "MDSkMeans")
 			{
 				if (is.null(clusters))  
-				{	X.gapstat <- gap.stats(Z, B = bootstrapReplicates, maxClusters = maxClusters) }
+				{	X.gapstat <- gap.stats(Z, B = bootstrapReplicates, maxClusters = maxClusters, seed = seed) 	}
 				else 
 				{ X.gapstat = NULL }
 				
-				X.model <- kMeans(Z, X.gapstat, k = clusters, maxIters = maxIters, plotting = FALSE, algorithm = endModelMetric, reduceClusters = reduceClusters)			
+				X.model <- kMeans(Z, X.gapstat, k = clusters, maxIters = maxIters, plotting = FALSE, 
+				algorithm = endModelMetric, reduceClusters = reduceClusters, seed = seed)			
 			}
 			
 			if (endModel[1] == "MDShClust")  
 			{	
-				X.model <- hClust(Z, method = endModelMetric, plotting = FALSE, k = clusters, reduceClusters = reduceClusters)
+				X.model <- hClust(Z, method = endModelMetric, plotting = FALSE, k = clusters, 
+				reduceClusters = reduceClusters,  seed = seed)
 				X.gapstat = NULL	
 			}
 
@@ -3780,7 +3844,7 @@ uthreads = "auto",
 				if (length(idx12) > 0)
 				{
 					if (endModel[1] == "MDSkMeans")
-					{	clusterOutliers <- which.is.nearestCenter(X.scale$points[c(idx1,idx2),], X.model$centers)	}
+					{	clusterOutliers <- which.is.nearestCenter(Z[c(idx1,idx2),], X.model$centers)	}
 					if (endModel[1] == "MDShClust")  
 					{	
 						nbClusters = length(unique(X.model$cluster))
@@ -3791,7 +3855,10 @@ uthreads = "auto",
 							centers[i,] = colMeans(Z[idx,, drop = FALSE])
 						}
 						
-						clusterOutliers <- which.is.nearestCenter(X.scale$points[c(idx1,idx2),], centers)	
+						if (flagBig) 
+						{	clusterOutliers <- which.is.nearestCenter(Z[c(idx1,idx2),], centers)	}
+						else
+						{ 	clusterOutliers <- which.is.nearestCenter(Z[c(idx1,idx2),], centers)	}
 					}
 					names(clusterOutliers) = c(idx1,idx2)
 					X.model$clusterOutliers = clusterOutliers
@@ -3803,11 +3870,11 @@ uthreads = "auto",
 			predictions = predObject$majority.vote
 			classes = sort(unique(predictions))
 			k = length(classes)
-			centers = matrix(0, k, ncol(X.scale$points))
+			centers = matrix(0, k, ncol(Z))
 			for (i in 1:p)
 			{	
 				idx = which(predictions == classes[i])
-				centers[i,] = colMeans(X.scale$points[idx,])
+				centers[i,] = colMeans(Z[idx,])
 			}
 			rownames(centers) = as.character(classes)
 			X.model = list(cluster = predictions, centers = centers)
@@ -3820,29 +3887,40 @@ uthreads = "auto",
 		if (endModel[1] == "kMeans")
 		{
 			if (is.null(clusters))  
-			{	X.gapstat <- gap.stats(proxMat[sample(n, floor(n/10)),], B = bootstrapReplicates, maxClusters = maxClusters) }
+			{	
+				X.gapstat <- gap.stats(proxMat[sample(n, floor(n/2)),, drop = FALSE], B = bootstrapReplicates, maxClusters = maxClusters,  seed = seed) 
+			}
 			else 
 			{ X.gapstat = NULL }		
-			X.model <- kMeans(proxMat, X.gapstat, k = clusters, maxIters = maxIters, plotting = FALSE, algorithm = endModelMetric)
+			X.model <- kMeans(proxMat, X.gapstat, k = clusters, maxIters = maxIters, plotting = FALSE, algorithm = endModelMetric,  seed = seed)
 		}
 		
 		if (endModel[1] == "hClust")  
 		{	
-			X.model <- hClust(proxMat, method = endModelMetric, plotting = FALSE, k = clusters)
+			X.model <- hClust(proxMat, method = endModelMetric, plotting = FALSE, k = clusters,  seed = seed)
 			X.gapstat = NULL 
 		}
 	}
 	clusters = length(unique(X.model$cluster))	
 		
 	modelParams = c(baseModel[1], endModel[1],  if (is.null(endModelMetric)) { "NULL" } else { endModelMetric }, 
-	samplingMethod[1], MDSmetric[1], computeFullMatrix, is.null(Xtest), is.null(predObject),  
-	if (is.null(nBiggestProximities)) { "NULL" } else { nBiggestProximities },  metricDimension, concatCore(as.character(coordinates)), bootstrapReplicates, clusters, if (is.null(maxIters)) { "NULL" } else { maxIters }, maxInteractions, maxClusters, mapAndReduce, outliersFilter, reduceClusters)
+	samplingMethod[1], MDSmetric[1], is.null(Xtest), is.null(predObject), metricDimension, concatCore(as.character(coordinates)), bootstrapReplicates, clusters, if (is.null(maxIters)) { "NULL" } else { maxIters }, 
+	maxInteractions, maxClusters, mapAndReduce, outliersFilter, reduceClusters)
 
-	names(modelParams) = c("baseModel", "endModel", "endModelMetric", "samplingMethod", "MDSmetric", "computeFullMatrix", "Xtest", "predObject", "nBiggestProximities", " metricDimension", "coordinates", "bootstrapReplicates", "clusters", "maxIters", "maxInteractions", "maxClusters", "mapAndReduce", "outliersFilter", "reduceClusters")
+	names(modelParams) = c("baseModel", "endModel", "endModelMetric", "samplingMethod", "MDSmetric", "Xtest", "predObject", "metricDimension", "coordinates", "bootstrapReplicates", "clusters", "maxIters", "maxInteractions", "maxClusters", "mapAndReduce", "outliersFilter", "reduceClusters")
 		
-	unsupervisedObject = list(proximityMatrix = proxMat, MDSModel = X.scale, unsupervisedModel = X.model, gapStatistics = X.gapstat, 
-		rUFObject = rUF.model, nbClusters = clusters,  params = modelParams ) 
-		
+	if (flagBig) 
+	{ 	
+		X.scale$points = Z
+		largeDataLearningModel = X.scale.ruf
+		unsupervisedObject = list(proximityMatrix = proxMat, MDSModel = X.scale, unsupervisedModel = X.model, largeDataLearningModel = largeDataLearningModel, gapStatistics = X.gapstat, rUFObject = rUF.model, 
+		nbClusters = clusters, params = modelParams) 	
+	}
+	else
+	{
+		unsupervisedObject = list(proximityMatrix = proxMat, MDSModel = X.scale, unsupervisedModel = X.model, gapStatistics = X.gapstat, rUFObject = rUF.model, nbClusters = clusters, params = modelParams) 	
+	}
+	
 	class(unsupervisedObject) <- "unsupervised"
 	
 	unsupervisedObject

@@ -14,7 +14,7 @@
   Ensemble model for classification, regression and unsupervised learning, based on a forest of unpruned and randomized binary decision trees. Unlike \emph{Breiman's Random Forests}, each tree is grown by sampling, \emph{with replacement}, a set of variables at each node. Each cut-point is generated randomly, according to the \emph{continuous Uniform distribution between two random points of each candidate variable}. Optimal random node is, then, selected among many full random nodes by maximizing information gain (classification) or minimizing 'L2' (or 'L1') distance (regression). Unlike \emph{Extremely Randomized Trees}, data are either bootstrapped or sub-sampled for each tree. Random Uniform Forests are aimed to lower correlation between trees, to offer a deep analysis of variable importance and to allow native distributed and incremental learning. The unsupervised mode introduces clustering and dimension reduction, using a three-layer engine (dissimilarity matrix, Multidimensional Scaling and k-means or hierarchical clustering). 
 }
 \usage{
-\method{randomUniformForest}{formula}(formula, data = NULL, \dots)
+\method{randomUniformForest}{formula}(formula, data = NULL, subset = NULL, \dots)
 \method{randomUniformForest}{default}(X, Y = NULL, xtest = NULL, ytest = NULL, 
 	ntree = 100,
 	mtry = ifelse(bagging, ncol(X), floor(4/3*ncol(X))),
@@ -44,6 +44,7 @@
 	na.action = c("fastImpute", "accurateImpute", "omit"),
 	logX = FALSE,
 	classcutoff = c(0,0),
+	subset = NULL,
 	threads = "auto",
 	parallelpackage = "doParallel",
 	\dots)	
@@ -65,6 +66,9 @@
 	}
 	\item{data}{
 	    in case of formula, a data frame, or matrix, containing the variables (including response) and their values.
+	}
+	\item{subset}{	
+		an index vector indicating which rows should be used.
 	}
 	\item{X, formula}{
 	    a data frame, or matrix, of predictors, or a formula describing the model to be fitted. Note that, it is strongly recommended to avoid formula when using options or with large samples.
@@ -103,7 +107,7 @@
 	     if TRUE, sampling of cases is done with replacement. By default, TRUE for classification, FALSE for regression.
 	}
 	\item{OOB}{
-	     if replace is TRUE, then if OOB is TRUE, "Out-of-bag" evaluation is done, resulting in an estimate of generalization (and mean squared) error and bounds. OOB option has overhead on computing time, but it is one of the most useful option.
+	     if replace is TRUE, then if OOB is TRUE, "Out-of-bag" evaluation is done, resulting in an estimate of generalization (and mean squared) error and bounds. OOB option has overhead on computing time especially for a large number of trees, but it is one of the most useful option.
 	}
 	\item{BreimanBounds}{
 	    if TRUE, computes all theoretical properties provided by Breiman (2001), since Random Uniform Forests inherit of Random Forests properties. For classification, it gives the two bounds of prediction error, average correlation between trees, strength and standard deviation of strength. In classsification, Breiman's bound should act as an upper bound; if not then overfitting is likely to happen. 
@@ -158,7 +162,7 @@
 	     applies logarithm transformation to all predictors whose values are strictly positive, and ignores the others.
 	}
 	\item{classcutoff}{
-	     for classification only. Change proportion of votes needed to get majority. First value of vector is the name of the class (between quotes) that has to be assessed. Second value is a kind of weight needed to get majority. For example, in a problem which classes "bad" and "good", and classcutoff = c("bad", 0.4), it means that class "bad" needs 'Cte/0.4' times more votes than class "good" to be the majority class when predicting a new observation, where Cte = 0.5 and all votes sum to the number of trees. 	
+	     for classification only. Change proportion of votes needed to get majority. First value of vector is the name of the class (between quotes) that has to be assessed. Second value is a kind of weight needed to get majority. For example, in a problem with classes "bad" and "good", and 'classcutoff = c("bad", 0.4)', it means that class "bad" needs 'Cte/0.4' times more votes than class "good" to be the majority class when predicting the label of a new observation, where Cte = 0.5 and all votes sum to the number of trees. 	
 	}
 	\item{threads}{
 	     compute model in parallel for computers with many cores. Default value is 'auto', letting model run on all logical cores minus 1. User can set 'threads' to any value greater than 1. Note that, in Windows, logical cores consume same memory than physical ones, but will not speed up computation linearly with the number of logical cores. Note that it is strongly recommended to use only one thread for small samples.
@@ -185,22 +189,27 @@ Others differences also appear at the node level. Like Random Forests, classific
  Others main features, thanks to Breiman's ideas, to the ensemble structure and to the Bayesian framework, are :\cr
  - some other paradigms of ensemble learning (like Bagging) using options,\cr
  - all Breiman's bounds,\cr
- - post-processing votes in order to lower MSE by lowering bias, see \code{\link{postProcessingVotes}},\cr
+ - post-processing votes in order to lower MSE by reducing bias, see \code{\link{postProcessingVotes}},\cr
+ - changing majority vote, using options ('classcutoff') \cr
+ - output perturbation sampling, lowering more the correlation, replacing completely (for regression and for each tree) the training vector of responses by an independent random Gaussian one with the same mean but different variance,\cr 
  - deep analysis of variable importance and selection, see \code{\link{importance.randomUniformForest}} and \code{\link{partialImportance}},\cr
  - partial dependencies, opening the way to extrapolation, see \code{\link{partialDependenceOverResponses}} and \code{\link{partialDependenceBetweenPredictors}},\cr
- - visualization tools and tables to help for a better interpretation,\cr
+ - visualization tools and tables to help for a better interpretation, see \code{\link{importance.randomUniformForest}} and others methods and functions,\cr
+ - generic function to assess results, see \code{\link{model.stats}},\cr
  - missing values imputation, see \code{\link{fillNA2.randomUniformForest}}, \cr
- - treatment of imbalanced classes,\cr
- - cost sensitive learning,\cr
- - quantile regression,\cr
- - prediction and confidence intervals, see \code{\link{bCI}}, \cr 
+ - treatment of imbalanced classes, using options ('oversampling', 'rebalancedsampling', 'classwt')\cr
+ - cost sensitive learning, \cr
+ - native handling of categorical variables using a randomization mechanism at the node level,\cr 
+ - quantile regression, see \code{\link{predict.randomUniformForest}}\cr
+ - new methods for prediction and confidence intervals, see \code{\link{bCI}}, \cr
+ - native parallelism, thanks to the parallel, doParallel and foreach packages,\cr
  - internal MapReduce paradigm for large datasets that can fit in memory, see \code{\link{rUniformForest.big}},\cr
  - incremental learning for large datasets that can not fit in memory, see \code{\link{rUniformForest.combine}}, \cr
  - distributed learning, allowing to run many different models on different data (sharing, at least, some features) on many computers and combine them in a single one, in different manners, for predictions. Note that one has to carefully manage the \emph{i.i.d.} assumption in order to see convergence happen.\cr
  - unsupervised learning and dimension reduction, see \code{\link{unsupervised.randomUniformForest}}.
   
  In particular, incremental learning is native, since the model uses random cut-points, and one can remove (see \code{\link{rm.trees}}), duplicate or add trees (but not modify) at each step of the incremental process.\cr
- Note that the model is not allowing results to be reproducible using the set.seed() function. One reason is that many (including essential) options run at the tree (or node) level in order to decrease correlation and use many random seeds internally. Since convergence is the primal property of Random Forests, for the same training sample, even if results will slightly vary, one has to consider the OOB estimate and Breiman's upper bound (in classification) as the main guarantees. They are effective only under the \emph{i.i.d.} assumption. If enough data is available, one can derive an OOB bound, giving conditions where test error would remain below OOB estimate and, consequently, below Breiman's bounds (see vignette).
+ Note that the model is not allowing results to be reproducible using the set.seed() function. One reason is that many (including essential) options run at the tree (or node) level in order to decrease correlation and use many random seeds internally. Since \emph{convergence is the primal property of Random Forests}, for the same enough large training sample, even if results will slightly vary, one has to consider the OOB estimate and Breiman's upper bound (in classification) as the main guarantees. They are effective only under the \emph{i.i.d.} assumption. If enough data is available, one can derive an OOB bound (see vignette), giving conditions where test error would remain below OOB estimate and, consequently, below Breiman's bounds (see also vignette).
  
  Note that speed is currently not at the state of art for small datasets, due to the majority R code and some constant overhead that seems coming from the parallelism. However some of the critical parts of the algorithm are written in C++, thanks to the Rcpp package. For large datasets the gap is greatly reduced, due to shortcuts added to the R code and increased randomness. That is the case when the dimension is getting high, or for regression. A great speed-up can also be achieved with the 'depth' option (for values close to 10), or the 'maxnodes' one, at the cost of some loss in accuracy.
 }
@@ -247,15 +256,19 @@ Ho, T.K., 1998. \emph{The random subspace method for constructing decision fores
 }
 
 \examples{
-# NOTE : use option 'threads = 1' (disabling parallel processing) to speed up computing 
-# for small samples, since parallel processing is useful only for computationally intensive tasks
-
-###### Part One : quick guide
-
 ## not run
+## NOTE : use option 'threads = 1' (disabling parallel processing) to speed up computing 
+## for small samples, since parallel processing is useful only for computationally 
+## intensive tasks
+
+###### PART ONE : QUICK GUIDE
+
 #### Classification 
+
 # data(iris)
 # iris.ruf <- randomUniformForest(Species ~ ., data = iris, threads = 1)
+
+## MODEL, PARAMETERS, STATISTICS:
 # iris.ruf ## or print(iris.ruf)
 
 ## plot OOB error: 
@@ -266,8 +279,9 @@ Ho, T.K., 1998. \emph{The random subspace method for constructing decision fores
 
 #### Regression
 
-## Note that when formula is used, missing values are automatically deleted and dummies
+## NOTE: when formula is used, missing values are automatically deleted and dummies
 ## are built for categorical features
+
 # data(airquality)
 # ozone.ruf <- randomUniformForest(Ozone ~ ., data = airquality, threads = 1)
 # ozone.ruf
@@ -275,40 +289,42 @@ Ho, T.K., 1998. \emph{The random subspace method for constructing decision fores
 ## plot OOB error: 
 # plot(ozone.ruf, threads = 1)
 
-## Bagging
+## BAGGING:
 # ozone.bagging.ruf <- randomUniformForest(Ozone ~ ., data = airquality,
 # bagging = TRUE, threads = 1)
 
-## Ensemble of totally randomized trees, e.g. purely random forest
-# ozone.prf <- randomUniformForest(Ozone ~ ., data = airquality, randomfeature = TRUE, threads = 1)
-
+## Ensemble of totally randomized trees, e.g. PURELY RANDOM FOREST:
+# ozone.prf <- randomUniformForest(Ozone ~ ., data = airquality, 
+# randomfeature = TRUE, threads = 1)
 
 #### Common case: use X, as a matrix or data frame, and Y, as a response vector, 
 
 #### Classification : iris data, training and testing
-data(iris)
 
-## define random train and test sample. "Species" is the response vector
+# data(iris)
+
+## define random train and test sample. "Species" is the response vector:
 # iris.train_test <- init_values(iris[,-which(colnames(iris) == "Species")], iris$Species,
 # sample.size = 1/2)
 
-## iris train and test samples
+## iris train and test samples:
 # iris.train = iris.train_test$xtrain
 # species.train = iris.train_test$ytrain
 # iris.test = iris.train_test$xtest
 # species.test = iris.train_test$ytest
 
-## iris train and test modelling
-# iris.train_and_test.ruf <- randomUniformForest(iris.train, species.train,
+## iris train and test modelling:
+# iris.train_test.ruf <- randomUniformForest(iris.train, species.train,
 # xtest = iris.test, ytest = species.test, threads = 1)
 
-# iris.train_and_test.ruf
+## view model and statistics:
+# iris.train_test.ruf
 
-## Balanced sampling : equal sample size for all labels
-# iris.train_and_test.balancedsampling.ruf <- randomUniformForest(iris.train, species.train,
+## BALANCED SAMPLING : equal sample size for all labels
+# iris.train_test.balancedsampling.ruf <- randomUniformForest(iris.train, species.train,
 # xtest = iris.test, ytest = species.test, rebalancedsampling = TRUE, threads = 1)
 								
-###### Part Two : Summarized case studies (remove comments to run)
+###### PART TWO : SUMMARIZED CASE STUDIES
 
 #### Classification : Wine Quality data
 ## http://archive.ics.uci.edu/ml/datasets/Wine+Quality
@@ -324,11 +340,9 @@ data(iris)
 ## First look : train model with default parameters (and retrieve estimates)
 ## call it standard model.
 # wineQualityRed.std.ruf <- randomUniformForest(X, as.factor(Y), threads = 2)
-
-## see OOB evaluation and parameters
 # wineQualityRed.std.ruf 
 
-## see statistics about the forest and global variable importance
+## GLOBAL VARIABLE IMPORTANCE:
 # summary(wineQualityRed.std.ruf)
 
 ## But some labels do not have enough observations to assess variable importance
@@ -342,7 +356,7 @@ data(iris)
 # table(Y)
 
 ## learn a new model to get a better view on variable importance
-## note : Y is now a factor, the model will catch the learning task as a classification
+## NOTE: Y is now a factor, the model will catch the learning task as a classification
 # wineQualityRed.new.ruf <- randomUniformForest(X, Y)
 # wineQualityRed.new.ruf 
 
@@ -355,38 +369,47 @@ data(iris)
 ## go deeper in assessing variable importance, using a high level of interaction
 # importance.wineQualityRed <- importance(wineQualityRed.new.ruf, Xtest = X, maxInteractions = 6)
 									
-## visualize : global importance, importance based on interactions, 
+## VISUALIZING IMPORTANCE: global importance, interactions, importance based on interactions, 
 ## importance based on labels, partial dependencies for all influential variables 
 ## (loop over the prompt to get others partial dependencies)
 ## get more points, using option whichOrder = "all", default option.
 
 # plot(importance.wineQualityRed, Xtest = X, whichOrder = "first")
 
-## look at some specific labels from a (very) local view point
-## what features for a very good wine (class 7 or 8) ?
+## LINKS BETWEEN OBSERVATIONS AND VARIABLES:
+# featuresAndObs = as.data.frame(importance.wineQualityRed$localVariableImportance$obs)
+# frequencyFeaturesIdx = grep("Frequency", colnames(featuresAndObs))
+# featuresNames = apply(featuresAndObs[,-c(1,frequencyFeaturesIdx)], 2, 
+# function(Z) colnames(X)[Z])
+# featuresAndObs[,-c(1,frequencyFeaturesIdx)] = featuresNames
+
+# head(featuresAndObs)
+
+## PARTIAL IMPORTANCE: look at some specific labels from a (very) local view point
+## which features for a very good wine (class 7 or 8) ?
 # pImportance.wineQualityRed.class7or8 <- partialImportance(X, importance.wineQualityRed, 
 # whichClass = "7 or 8", nLocalFeatures = 6)
 											
-## but how do they act ?
-## get it feature after feature, recalling partial dependence
-## and considering feature at the first order 
-## assuming the feature is the most important, at least for the class one need to assess.
+## PARTIAL DEPENDENCIES: how response relies to variables ?
+## get it feature after feature, recalling partial dependence 
+## and considering feature at the first order assuming the feature is the most important, 
+## at least for the class one need to assess.
 
 # pDependence.wineQualityRed.totalSulfurDioxide <- partialDependenceOverResponses(X, 
 # importance.wineQualityRed, whichFeature = "total.sulfur.dioxide", 
 # whichOrder = "first", outliersFilter = TRUE)
 											
-## see what happen then for "alcohol"
+## see what happen then for "alcohol" (ask more points using option 'whichOrder = "all"')
 # pDependence.wineQualityRed.alcohol <- partialDependenceOverResponses(X, 
-# importance.wineQualityRed, whichFeature = "alcohol", 
+# importance.wineQualityRed, whichFeature = "alcohol",  
 # whichOrder = "first", outliersFilter = TRUE)
 
 #### Regression : Auto MPG 
 ## http://archive.ics.uci.edu/ml/datasets/Auto+MPG
-## 398 observations, 8 variables, missing values
+## 398 observations, 8 variables,
 ## Variable to predict : "mpg", miles per gallon 
 
-## data(autoMPG)
+# data(autoMPG)
 # autoMPG.data = autoMPG
 
 # Y = autoMPG.data[,"mpg"]
@@ -395,22 +418,38 @@ data(iris)
 ## remove "car name" which is a variable with unique ID (car models)
 # X = X[, -which(colnames(X) == "car name")]
 
-## train the model and get OOB evaluation
+## train the default model and get OOB evaluation
 # autoMPG.ruf <- randomUniformForest(X, Y)
 
-## assess variable importance
+## assess variable importance (asking more points with 'maxInteractions' option)
+## NOTE: importance strongly depends on 'ntree' and 'mtry' parameters
 # importance.autoMPG <- importance(autoMPG.ruf, Xtest = X)
 # plot(importance.autoMPG, Xtest = X)
+
+## opening the way for EXTRAPOLATION (recalling partial dependencies and getting points)
+## NOTE : points are the result of the forest classifier and not training responses
+# pDependence.autoMPG.weight <- partialDependenceOverResponses(X, importance.autoMPG,
+# whichFeature = "weight", whichOrder = "all", outliersFilter = TRUE)
+
+## visualize again 'model year' as a discrete variable and not as a continuous one 
+# pDependence.autoMPG.modelyear <- partialDependenceOverResponses(X, importance.autoMPG,
+# whichFeature = "model year", whichOrder = "all", maxClasses = 30)
 
 ## what are the features that lead to a lower consumption (and high mpg)?
 # pImportance.autoMPG.high <- partialImportance(X, importance.autoMPG, 
 # threshold = mean(Y), thresholdDirection = "high", nLocalFeatures = 6)
 											
-## Look at "weight" and "acceleration" dependence
-## note that option perspective = TRUE allows a 3D representation
+## PARTIAL DEPENDENCIES BETWEEN COVARIATES : Look at "weight" and "acceleration" dependence
+## and looking informations to get their interactions, relatively to all others
 # pDependence.autoMPG.weightAndAcceleration <- 
 # partialDependenceBetweenPredictors(X, importance.autoMPG, c("weight", "acceleration"),
-# whichOrder = "all", perspective = FALSE, outliersFilter =  TRUE)
+# whichOrder = "all", perspective = FALSE, outliersFilter = TRUE)
+
+## Visualize in 3D (looking to the prompt to start animation)
+## NOTE : requires some computation
+# pDependence.autoMPG.weightAndAcceleration <- 
+# partialDependenceBetweenPredictors(X, importance.autoMPG, c("weight", "acceleration"),
+# whichOrder = "all", perspective = TRUE, outliersFilter = FALSE)
 
 ##dtFW
 }

@@ -1,6 +1,39 @@
+Changes in 1.1.1
+
+1 - 'subset' option added when using formula.
+
+2 - Limited support for large files in unsupervised learning. More precisely, for datasets with more than 2000 rows
+a subsample is learned in a full unsupervised mode and the remaining points are predicted in the MDS space, before applying clustering. Some options have also be removed, since they are not easy to assess. Next update will allow full support.
+
+3 - clusteringObservations( ) function is now matching objects coming from a formula.
+
+4 - modifyClusters( ) function is now working for unsupervised objects that use hierarchical clustering.
+
+5 - Using specific combinations of options lead to build some trees with no defined leaves. Such trees lead R to crash. Patch has been added to force all trees to have well defined leaves. Note that the algorithm deletes variables that are no longer useful during the growth of a tree (which was possibly a cause for the bug).
+
+6 - Cut-points, information gain and 'Lp' distances return now values rounded to have 4 decimals.
+
+7 - Missing values imputation, fillNA2.randomUniformForest( ) function, has been improved 
+to better match categorical variables.
+
+8 - Automatic detection of categorical variables has been improved.
+
+9 - Algorithm has been updated to convert null character, "", as a numeric value. 
+Hence it still is a missing value form the point of view of original data, but internally it is treated as an explicit  numeric value different from others numeric values in the variable. 
+
+10 - OOB evaluation now detects cases with very imbalanced classes that can not be predicted correctly.
+
+11 - Added a new (experimental) function, reSMOTE( ), to handle very imbalanced datasets.
+
+12 - Main functionalities have been detailed, see the Details section of ?randomUniformForest, and more examples added.
+
+13 - Seed has been added to the unsupervised mode for stability of the results.
+
+14 - Various bugs corrected.
+
 Changes in 1.1.0
 
-1- New method used to choose cut-points lead to loss of accuracy for low values of 'mtry' and in the unsupervised case. 
+1 - New method used to choose cut-points lead to loss of accuracy for low values of 'mtry' and in the unsupervised case. 
 Cut-points choice has been changed in order to separate classification, unsupervised mode and regression. 
 In Regression and unsupervised learning, cut-points are chosen using the whole support of each candidate variable, 
 as in initial release and prior to the 1.0.9 one. In Classification, the support is now reduced to two random points 
