@@ -11,12 +11,12 @@
 }
 \usage{
 clusteringObservations(object, X,
-OOB = FALSE,  
+OOB = TRUE,  
 predObject = NULL, 
 importanceObject = NULL, 
 baseModel = c("proximity", "proximityThenDistance",  "importanceThenDistance"),
 MDSmetric = c("metricMDS", "nonMetricMDS"),
-endModel = c("MDS", "MDSkMeans", "MDShClust"),
+endModel = c("MDS", "MDSkMeans", "MDShClust", "SpectralkMeans"),
 \dots)
 }
 
@@ -98,7 +98,13 @@ In the three levels, there is at least one layer (the dissimilarity matrix), in 
 
 ## note that true labels are left to their numeric values in order to not modify
 ## the internal structure of the supervised model
-# vehicle.clusterObjectOOB
+#  vehicle.clusterObjectOOB
+
+## 2.1 use 'sparseProximities = TRUE' (providing a better clustering)
+# vehicle.clusterObjectOOB.2 = clusteringObservations(vehicle.ruf, X, OOB = TRUE,
+# importanceObject = vehicle.importance, clusters = 4, sparseProximities  = TRUE)
+
+# vehicle.clusterObjectOOB.2
 
 ## 3 - learn supervised model, predict and visualize predictions
 ## set training and test sets
@@ -119,7 +125,7 @@ In the three levels, there is at least one layer (the dissimilarity matrix), in 
 ## clustering predictions : no satisfaction. 
 ## Clustering seems to the reside in a higher dimension
 # vehicle.new.clusterObject = clusteringObservations(vehicle.new.ruf, X2, 
-# importanceObject = vehicle.new.importance, OOB = FALSE, clusters = 4)
+# importanceObject = vehicle.new.importance, OOB = FALSE, clusters = 4, sparsePrxoimities = TRUE)
 
 ## 3.1 - ask help : let's kMeans talk, i.e. can the problem have a dimension as small as 2 ?
 ## note that the clustering process generates its own predictions and the labels of clusters 
@@ -134,7 +140,7 @@ In the three levels, there is at least one layer (the dissimilarity matrix), in 
 ## compare with true test labels : first let's look to the supervised model
 
 # stats.new = model.stats(as.factor(vehicle.new.ruf$predictionObject$majority.vote), 
-# as.factor(as.numeric(Y2)))
+# as.factor(Y2))
 
 ## for the clustering model, pairing true test labels and cluster labels
 ## is done as a shortcut. Finally, even if clustering is achievable
@@ -160,6 +166,29 @@ In the three levels, there is at least one layer (the dissimilarity matrix), in 
 # 'van'
 # table(clusterPredictions[which(as.numeric(Y2) == 4)])
 # hence 'van' corresponds to the cluster 2 (most frequent values)
+
+## 3.2 - ask spectral clustering
+# vehicle.more.clusterObject = clusteringObservations(vehicle.new.ruf, X2, 
+# endModel = "SpectralkMeans", clusters = 4, OOB = FALSE)
+# clusterPredictions = mergeOutliers(vehicle.more.clusterObject)
+
+## looks better, but finding true classes remains difficult
+## one may use more dimensions : 'metricDimension' for the number to compute, 
+## 'coordinates' for the dimensions to be clustered.
+# vehicle.more.clusterObject = clusteringObservations(vehicle.new.ruf, X2, 
+# endModel = "SpectralkMeans", clusters = 4, OOB = FALSE, metricDimension = 10, coordinates = 1:5)
+
+## then plot pair of coordinates and choose the one that looks good and use it for a new modelling
+# plot(vehicle.more.clusterObject, coordinates = c(1,2))
+# plot(vehicle.more.clusterObject, coordinates = c(2,3))
+
+## remove coordinates that are useless
+# vehicle.more.clusterObject = rm.coordinates(vehicle.more.clusterObject, c(1,4,5))
+# vehicle.more.clusterObject
+# plot(vehicle.more.clusterObject)
+# clusterPredictions = mergeOutliers(vehicle.more.clusterObject)
+
+## new model should looks better in predicting Vehicle labels...
 }
 
 \keyword{unsupervised}

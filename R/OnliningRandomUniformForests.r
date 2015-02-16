@@ -32,11 +32,40 @@ onlineCombineRUF <- function(rufObject1, rufObject2)
 		{	rufObject.0$OOB = rufObject1$OOB }
 		else
 		{
-			tmp.OOB1 = rufObject1$OOB
-			tmp.OOB2 = rufObject2$OOB			
-			tmp.OOB = tmp.OOB1[,-ncol(tmp.OOB1)] + tmp.OOB2[,-ncol(tmp.OOB2)]
-			class.error =  1 - diag(tmp.OOB)/rowSums(tmp.OOB)	
-			rufObject.0$OOB = cbind(tmp.OOB, class.error)
+			p1 = ncol(rufObject1$OOB)
+			p2 = ncol(rufObject2$OOB)
+			tmp.OOB1 = rufObject1$OOB[,-p1]
+			tmp.OOB2 = rufObject2$OOB[,-p2]
+						
+			if (p1 != p2)
+			{
+				if (p1 > p2)
+				{
+					tmp.OOB = tmp.OOB1
+					matchIdx = rmNA(match(as.numeric(colnames(tmp.OOB2)), as.numeric(colnames(tmp.OOB1))))
+					for (i in 1:length(matchIdx))
+					{	
+						tmp.OOB[matchIdx[i],matchIdx[i]] = tmp.OOB[matchIdx[i],matchIdx[i]] + tmp.OOB2[matchIdx[i],matchIdx[i]]
+					}	
+				}
+				else
+				{
+					tmp.OOB = tmp.OOB2
+					matchIdx = rmNA(match(as.numeric(colnames(tmp.OOB1)), as.numeric(colnames(tmp.OOB2))))
+					for (i in 1:length(matchIdx))
+					{	
+						tmp.OOB[matchIdx[i],matchIdx[i]] = tmp.OOB[matchIdx[i],matchIdx[i]] + tmp.OOB1[matchIdx[i],matchIdx[i]]
+					}				
+				}
+				class.error =  1 - diag(tmp.OOB)/rowSums(tmp.OOB)	
+				rufObject.0$OOB = cbind(tmp.OOB, class.error)
+			}
+			else
+			{			
+				tmp.OOB = tmp.OOB1 + tmp.OOB2
+				class.error =  1 - diag(tmp.OOB)/rowSums(tmp.OOB)	
+				rufObject.0$OOB = cbind(tmp.OOB, class.error)
+			}
 		}
 	}	
 	tmp.rufObject.0 = rufObject.0	
@@ -165,6 +194,8 @@ rUniformForest.big <- function(X, Y = NULL, xtest = NULL, ytest = NULL, nforest 
 		Y = Y[subset]
 	}
 	
+	if (exists("categorical", inherits = FALSE)) {  categoricalvariablesidx = categorical }
+	else { categorical = NULL  }
 	if ((nrow(X)/nforest < 50) & !reduceDimension & !reduceAll) 
 	{ stop("Too small size to achieve efficiency in learning")	}
 	X <- fillVariablesNames(X)
@@ -438,6 +469,9 @@ rUniformForest.merge <- function(X = NULL, Y = NULL, xtest = NULL, ytest = NULL,
 	na.action = c("fastImpute", "accurateImpute", "omit"),
 	parallelpackage = "doParallel"  )
 {
+	if (exists("categorical", inherits = FALSE)) {  categoricalvariablesidx = categorical }
+	else { categorical = NULL  }
+	
 	if (!is.null(X) & !is.null(Y))
 	{
 		if (!is.null(subset))

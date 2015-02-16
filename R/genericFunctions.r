@@ -266,8 +266,9 @@ rmNA = function(X)
 
 NATreatment <- function(X, Y, na.action = c("fastImpute", "accurateImpute", "omit"), regression = TRUE)
 {
+	p = ncol(X)
 	featuresWithNAOnly = which(NAFeatures(X) == 1)
-	if (length(featuresWithNAOnly) == ncol(X)) { stop("Data have only NA values") }
+	if (length(featuresWithNAOnly) == p) { stop("Data have only NA values") }
 	if (length(featuresWithNAOnly) > 0) 
 	{ 
 		X = X[,-featuresWithNAOnly] 
@@ -278,7 +279,8 @@ NATreatment <- function(X, Y, na.action = c("fastImpute", "accurateImpute", "omi
 	matchNA = (length(NAInputs) > 0)		
 	if ( (length(unique(NAInputs)) > (nrow(X) - 30)) & (na.action[1] == "omit") ) 
 	{ stop("Too much missing values in data. Please impute missing values in order to learn the data.\n") }		
-	if (!regression & !is.factor(Y) ) { Y = as.factor(Y) }
+	if (is.factor(Y)) levelsY = levels(Y)
+	if (!regression & !is.factor(Y) ) { Y = as.factor(Y); levelsY = levels(Y) }	
 	
 	NALabels = which(is.na(Y))
 	matchNALabels = (length(NALabels) > 0)		
@@ -293,14 +295,10 @@ NATreatment <- function(X, Y, na.action = c("fastImpute", "accurateImpute", "omi
 			{ 
 				cat("NA found in data. Imputation (fast or accurate, depending on option) is used for missing values.\nIt is strongly recommended to impute values outside modelling, using one of many available models.\n")					
 				XY <- na.impute(cbind(X, newY), type = na.action[1])
-				Y <- XY[,ncol(X)+1]
-				X <- XY[,-(ncol(X)+1)]
-				rm(XY)					
-				# if (is.factor(Y) & matchNALabels)
-				# {	
-					# levelsY = levels(Y)
-					# Y[NALabels] = levelsY[newY[NALabels]]
-				# }
+				Y <- XY[,p+1]
+				X <- XY[,-(p+1)]
+				if (!regression) {  Y = as.factor(Y); levels(Y) = levelsY }
+				rm(XY)				
 			}
 			else
 			{
@@ -414,7 +412,7 @@ genericCbind <- function(X,Y, ID = 1)
 	matchIdx = match(X[,ID],Y[,ID])
 	
 	if (all(is.na(matchIdx)))
-	{  	stop("pas d'identifiants communs entre les deux matrices.", "/n") 	}
+	{  	stop("Matrix do not share same values in 'ID'.\n") 	}
 	else
 	{
 		naIdx = which(is.na(matchIdx))
@@ -435,7 +433,7 @@ is.wholenumber <- function(x, tol = .Machine$double.eps^0.5)  abs(x - round(x)) 
 
 which.is.wholenumber <- function(X)  which(is.wholenumber(X))
 
-fillWith = function(X, toPut = "NA")
+fillWith <- function(X, toPut = "NA")
 {
 	for (j in 1:ncol(X))
 	{ 
@@ -468,7 +466,6 @@ na.impute <- function(X, type = c("fastImpute", "accurateImpute"))
 # sample replacement (good and automatic, but prefere na.impute for accuracy)
 na.replace = function(X, fast = FALSE)
 {
-	# remplace les données manquantes par la moyenne d'un sous échantillon aléatoire de la variable considérée
 	na.matrix = which(is.na(X), arr.ind = TRUE)
 	n = nrow(X)
 	factors <- which.is.factor(X)
@@ -492,7 +489,8 @@ na.replace = function(X, fast = FALSE)
 					{
 						while(is.na(X[i.idx[i],p[j]])) 	{ 	X[i.idx[i],p[j]] <-  mean(rmNA(X[sample(1:n,sample(1:n,n)),p[j]])) 	}
 						
-						if ( length(which.is.wholenumber(rmNA(X[,p[j]]))) == subLength ) 	{  X[i.idx[i],p[j]] =  floor(X[i.idx[i],p[j]]) }
+						if ( length(which.is.wholenumber(rmNA(X[,p[j]]))) == subLength ) 	
+						{  X[i.idx[i],p[j]] =  floor(X[i.idx[i],p[j]]) }
 					}
 				}
 			}
@@ -2257,7 +2255,7 @@ scale2AnyValues <- function(X, Y)
 	return(Z)
 }
 
-persp.withcol <- function(x, y, z, pal, nbColors,...,xlg = TRUE, ylg = TRUE)
+perspWithcol <- function(x, y, z, pal, nbColors,...,xlg = TRUE, ylg = TRUE)
 {
 	# import from http://rtricks.wordpress.com/tag/persp/
 	colnames(z) <- y
@@ -2378,12 +2376,13 @@ model.stats <- function(predictions, responses, regression = FALSE, OOB = FALSE,
 	#require(pROC)
 	if (OOB)  { cat("\nOOB evaluation") }
 	else { cat("\nTest set") }
-	
 	if (is.factor(predictions) | !regression)
 	{
 		uniqueResponses = sort(unique(responses))
 		if (!is.factor(responses)) { responses = as.factor(responses) }
 		confMat = confusion.matrix(predictions, responses)
+		#rownames(confMat) = uniqueResponses
+		#colnames(confMat)[-ncol(confMat)] = rownames(confMat)
 		cat("\nError rate: ")
 		testError = generalization.error(confMat)
 		cat(round(100*testError, 2), "%\n", sep="")
@@ -2418,16 +2417,18 @@ model.stats <- function(predictions, responses, regression = FALSE, OOB = FALSE,
 		MSE = L2Dist(predictions, responses)/n
 		cat("\nMean of squared residuals: ", round(MSE, 6), "\n", sep="") 
 		cat("Variance explained: ", round(100*(1 - MSE/var(responses)),2), "%\n\n", sep = "")	
-		Residuals <- summary(predictions - responses)
+		Residuals <- summary(responses - predictions)
 		names(Residuals) = c("Min", "1Q", "Median", "Mean", "3Q", "Max")
 		cat("Residuals:\n")
 		print(Residuals)
 		cat("Mean of absolute residuals: ", round(L1Dist(predictions, responses)/n, 6), "\n", sep="")
 		cat("\nLinear modelling:")
-		predictionvsResponses(predictions, responses, plotting = plotting) 		
+		predictionvsResponsesLinMod = predictionvsResponses(predictions, responses, plotting = plotting)
+		outputLM = summary(predictionvsResponsesLinMod)
+		
+		return(list(MSE = MSE, Residuals = Residuals, predictionvsResponsesLinMod = outputLM ))
 	}
 }
-
 
 generic.cv <- function(X, Y, nTimes = 1, k = 10, seed = 2014, regression = TRUE, genericAlgo = NULL, specificPredictFunction = NULL, 
 metrics = c("none", "AUC", "precision", "F-score", "L1", "geometric mean", "geometric mean (precision)"))
@@ -2507,8 +2508,8 @@ metrics = c("none", "AUC", "precision", "F-score", "L1", "geometric mean", "geom
 	else {  return(list(testError = testError, avgError = mean(testError), stdDev = sd(testError), metric = metricValues) ) }
 }
 
-filterOutliers <- function(X, quantileValue, direction = c("low", "high")) if (direction == "low") { X[X < quantileValue] } else { X[X > quantileValue]  }
-
+filterOutliers <- function(X, quantileValue, direction = c("low", "high")) 
+if (direction == "low") { X[X < quantileValue] } else { X[X > quantileValue]  }
 
 which.is.nearestCenter <- function(X, Y)
 {
@@ -2535,14 +2536,19 @@ intraClassesVariance <- function(X, classes)
 	l <- tapply(X, classes,length) 
 	return( sum(l*v/length(X)) )
 }
-
- mergeOutliers <- function(object)
+ 
+mergeOutliers <- function(object)
 {
 	Z = object$unsupervisedModel$cluster
 	if (!is.null(object$unsupervisedModel$clusterOutliers))
 	{ Z = c(Z, object$unsupervisedModel$clusterOutliers)	}			
-	Z = sortDataframe( data.frame(Z, as.numeric(names(Z))), 2)
-	return(Z[,1])
+	if (!is.null(names(Z))) 
+	{ 
+		Z = sortDataframe( data.frame(Z, as.numeric(names(Z))), 2)
+		return(Z[,1])
+	}
+	else
+	{	return(Z) }	
 }
 
 splitVarCore <- function(X, nsplit, lengthOfEachSplit)
@@ -2595,7 +2601,10 @@ timeStampCore <- function(stamp, n = NULL, begin = 0, end = NULL, windowLength =
 }
 
 reSMOTE <- function(X, Y, majorityClass = 0, increaseMinorityClassTo = NULL, 
-samplingMethod = c("uniform univariate sampling", "uniform multivariate sampling", "with bootstrap"))
+conditionalTo = NULL,
+samplingFromGaussian = FALSE,  
+samplingMethod = c("uniform univariate sampling", "uniform multivariate sampling", "with bootstrap"),
+seed = 2014)
 {
 	n = nrow(X)
 	if (is.data.frame(X)) stop("X must be a matrix.\n")
@@ -2626,7 +2635,7 @@ samplingMethod = c("uniform univariate sampling", "uniform multivariate sampling
 	XXY = vector('list', iterations)
 	for (i in 1:iterations)
 	{
-		XXY[[i]] <- unsupervised2supervised(X, method = samplingMethod[1], 
+		XXY[[i]] <- unsupervised2supervised(X, method = samplingMethod[1], conditionalTo = conditionalTo, samplingFromGaussian = samplingFromGaussian, seed = seed,
 		bootstrap = if (length(samplingMethod) > 1) { TRUE } else { FALSE })$X[(n+1):(2*n),][minorityIdx,]
 	}
 
@@ -2656,10 +2665,9 @@ samplingMethod = c("uniform univariate sampling", "uniform multivariate sampling
 		ZY  = rbind(XY, newXY)	
 	}
 	cat("Proportion of examples of minority class in the original sample: ", round(100*(length(minorityIdx))/n, 2), "%.\n", sep="")
-	cat("Proportion of examples of minority class in the new sample: ", round(100*(iterations*length(minorityIdx))/nrow(ZY), 2), "%.\n", sep="")
+	cat("Proportion of examples of minority class in the new sample: ", round(100*length(which(ZY[,"Class"] != majorityClass))/nrow(ZY), 2), "%.\n", sep="")
+	cat(nrow(ZY), "instances in the new sample.\n")
 	
 	return(ZY)
 } 
-
- 
 # END OF FILE

@@ -6,7 +6,7 @@
   Change number of clusters (and clusters shape) on the fly
 }
 \description{
-   Modify on the fly the number of clusters in the unsupervised mode of Random Uniform Forests. Once the unsupervised model is built, one can change the clustering scheme, adding or merging clusters without computing again the model. Average silhouette coefficient or inter-classes variance are automatically adjusted in order to assess the new scheme.
+   Modify on the fly the number of clusters in the unsupervised mode of Random Uniform Forests. Once the unsupervised model is built, one can change the clustering scheme, adding or merging clusters without computing again the model. Average silhouette coefficient or variance between clusters are automatically adjusted in order to assess the new scheme.
 }
 \usage{
 modifyClusters(object, decreaseBy = NULL, increaseBy = NULL, seed = 2014)

@@ -5,7 +5,7 @@
 \title{Predict method for random Uniform Forests objects
 }
 
-\description{Prediction of test data using random Uniform Forests.
+\description{Prediction of test data with random Uniform Forests. Many options are allowed, the default one rendering exactly the same type of variable than the one of training labels.
 }
 
 \usage{
@@ -29,7 +29,7 @@
      a data frame or matrix containing new data (without response values).
 }
 	\item{type}{
-    one of response, prob, votes, prediction intervals, ranking, quantile, true majority or raw outputs, indicating respectively the type of output: 'predicted values', 'matrix of class probabilities', 'matrix of vote counts', 'prediction interval for each response', 'ranked responses' in case of recommendation scheme (note that it is currently experimental and it, first, requires classification modelling), 'quantile regression', 'predicted values based on nodes votes instead of tree votes', or lastly, 'raw outputs' of a random uniform forest. Note that "confInt" and "quantile" use an estimate of the conditional expectation for each tree parameter (the randomness), which contains many duplicates, due to bootstrap and the nature of ensemble learning, to produce estimates. These ones are usually loose since forest replicates distribution of Y (knowing X) to take decisions. A more accurate option is to use \code{\link{bCI}} function. Note also that option "quantile" is better handled when using default value of the 'nodesize' option in the \code{\link{randomUniformForest}} function. 
+    one of response, prob, votes, prediction intervals, ranking, quantile, true majority or raw outputs, indicating respectively the type of output: 'predicted values', 'matrix of class probabilities', 'matrix of vote counts', 'prediction interval for each response', 'ranked responses' in case of recommendation scheme (note that it is currently experimental and it, first, requires classification modelling), 'quantile regression', 'predicted values based on nodes votes instead of tree votes', or lastly, 'raw outputs' of a random uniform forest. Note that "confInt" and "quantile" use an estimate of the conditional expectation for each tree parameter (the randomness), which contains many duplicates, due to bootstrap and the nature of ensemble learning, to produce estimates. These ones are usually loose since the forest replicates the distribution of Y (knowing X) to take decisions while one does not need all the X values to have one prediction. A more accurate option is to use the dedicated \code{\link{bCI}} function. Note also that option "quantile" is better handled when using default value of the 'nodesize' option in the \code{\link{randomUniformForest}} function. 
 }
 	\item{classcutoff}{
     see \code{\link{randomUniformForest}}.
@@ -57,7 +57,7 @@
 \value{
   \item{response }{predicted values. Default option that returns values in the same way than original training responses.}
   \item{prob }{for classification only. Matrix of class probabilities.}
-  \item{votes }{matrix of vote counts. Each row is an observation and each columns is tree output.}
+  \item{votes }{matrix of vote counts. Each row is an observation and each column is tree output.}
   \item{confInt }{for regression only. Matrix where each row is an observation and each column one of the prediction interval bounds. }
   \item{quantile }{for regression only. Vector of predicted quantiles for 'conf' (value of the option) level of confidence.}
   \item{ranking }{a matrix or data frame. Description will be updated soon.}
@@ -70,7 +70,7 @@
 }
 
 \seealso{
- \code{\link{postProcessingVotes}}, \code{\link{bCI}}, \code{\link{model.stats}}  
+ \code{\link{postProcessingVotes}}, \code{\link{bCI}}, \code{\link{model.stats}}, \code{\link{generic.cv}}
 }
 
 \examples{

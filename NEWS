@@ -1,8 +1,58 @@
+Changes in 1.1.3 to 1.1.5
+
+1 - Unsupervised mode has been updated to deeper take into account dimension reduction and visualization, 
+and to be more flexible. Options and examples have also been updated and are more detailed.
+
+2 - 'clusterAnalysis( )' function has been introduced. It allows to get a full analysis of the clustering results
+in a compact and granular representation. It also works for classification.
+
+3 - 'splitClusters( )' function has been added. it allows to split a cluster in 2 parts, creating new ones.
+
+4 - Spectral clustering (Ng, Jordan and Weiss algorithm with slight modifications) has been introduced 
+in a beta release.
+
+5 - 'rm.coordinates( )' has been introduced. It allows to remove coordinates that do not matter when, and after, doing spectral clustering.
+While not documented for now, one can look examples in 'unsupervised.randomUniformForest( )' function.
+
+6 - Proximities matrix was not correctly normalized to have maximum value equal to 1. It is now corrected.
+
+7 - Proximities matrix uses now two ways to compute similarities. The former one used similarities with a value 1
+for any proximity, leading to a binary matrix. The new and default one follows exactly Breiman's formulation. 
+Associated option is called 'sparseProximities', to choose between the two.
+
+8 - Option 'categoricalvariablesidx' can now be replaced by its alias 'categorical' and values can be either subscripts 
+or names of the variables (between quotes), or "all" (as before).
+
+9 - 'rufImpute( )' has been added as an alias of 'fillNA2.randomUniformForest( )'. Examples have been detailed.
+
+10 - 'reSMOTE( )' has been updated to sample minority class conditionally to the class distribution or to another
+ variable of the training set.
+
+11 - OOB evaluation, using 'rebalancedsampling' option, has been updated to take into account the whole sample
+instead of a part of it (which were formerly, for each tree, OOB cases in the rebalanced sample).
+
+12 - 'print( )' method of 'importance( )' and 'summary( )' methods of 'randomUniformForest( )' have been updated. 
+ The especially add a comment to warn the user between the order of predictive (distinguish all classes) features, 
+ which are plotted, different to the order of discriminant (distinguish one class much better than another) ones. 
+ Both cases are present in the table of Global Variable Importance.
+
+13 - 'plot( )' method of 'importance( )' function has been adapted to display partial dependencies for a better
+ visibility, e.g. at first order for large datasets and by not filtering outliers. 
+
+14 - Computing Breiman's bounds formerly used all available cores except logical ones, overriding 'threads' option.
+It is now consistent with 'threads'.
+
+15 - 'combine.unsupervised( )' has been renamed to 'combineUnsupervised( )' for consistency with S3 methods.
+
+16 - Vignette has been updated. 
+
+17 - Various bugs corrected and documentation improved.
+
 Changes in 1.1.2
 
 1 - Option 'usesubtrees' has been introduced for large datasets support. It allows to grow trees with an arbitrary depth
 that are, in a second step, updated by extending all non pure nodes. The option is mainly designed to reduce memory
-footprint while possibly providing faster convergence and computing times. Note that many over usages can be found. 
+footprint while possibly providing faster convergence and computing times. Note that many other usages can be found. 
 
 2 - Improvements on preprocessing time.
 
@@ -13,8 +63,7 @@ For more informations about how categorical variables are handled, see the Detai
 
 4 - Extended support of large files for the unsupervised mode. New functions, 'update.unsupervised( )' and 'combine.unsupervised( )', added. 
 The first one allows the unsupervised learning engine to be updated with new data. The second one (while experimental) allows to combine many unsupervised objects.
-Both lead to incremental unsupervised learning while the second one will be able to handle (at least partially) 
-shifting distributions. Some bugs have also been corrected.
+Both lead to incremental unsupervised learning while the second one will be able to handle (at least partially) shifting distributions. Some bugs have also been corrected.
 
 5 - 'bagging' option updated to support the selection of an arbitrary number of variables when used in conjunction with 'mtry'. 
 More precisely if 'bagging' is enabled and 'mtry' being a value lower or equal to the dimension of data, then sample without replacement of 'mtry' variables will be done.
@@ -27,7 +76,7 @@ More precisely if 'bagging' is enabled and 'mtry' being a value lower or equal t
 
 9 - Vignette has been updated to revise consistency between theoretical formulae and R code implementation.
 
-10 - New vignettes have been added.
+10 - New vignette has been added.
 
 Changes in 1.1.1
 

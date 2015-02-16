@@ -54,7 +54,7 @@ a list with the following components :
    \item{testError}{the values of test error.}
   \item{avgError}{mean of test error.}
   \item{stdDev}{standard deviation of test error.}
-  \item{metric}{values of the metric chosen.}
+  \item{metric}{values of the other chosen metric.}
 }
 
 \author{
@@ -69,7 +69,7 @@ a list with the following components :
 
 ## 10-fold cross-validation for the randomUniformForest algorithm:
 
-## create the wrapper function (setting 'threads = 1' since data re small)
+## create the wrapper function (setting 'threads = 1' since data are small)
 # genericAlgo.ruf <- function(X, Y) randomUniformForest(X, Y, 
 # OOB = FALSE, importance = FALSE, threads = 1)
 

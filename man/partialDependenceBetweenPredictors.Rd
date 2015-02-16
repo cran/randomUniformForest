@@ -47,10 +47,12 @@ partialDependenceBetweenPredictors(Xtest, importanceObject, features,
 }
 
 \details{
-  partial dependence shows how response values are evolving depending to two target features and knowing the distribution of all others features. Note that it is essential to first have a view on target features importance.
-  Steps can be given as this :
-  1- get importance object (and plot it) that shows almost all objects that could explain the link between features and response.
+  partial dependence shows how response values are evolving depending to a pair of variables and knowing the distribution of all others covariates. Note that it is essential to first have a view on variable importance object.
+  Steps can be given as this :\cr
+  1- get importance object (and plot it), that shows almost all objects that could explain the link between features and response.\cr
   2- compute dependence between two target features and response values. Link this point with step 1 to obtain precise effects on response feature.
+  
+  Note that the function shows both the dependence between the pair of variables and the effect over the whole response values.
 }
 
 \value{
@@ -72,8 +74,9 @@ There is currently not a generic way (at least, I did not find it) to automatica
 
 \examples{
 ## not run
-## NOTER: please remove comments to run
-#### Classification: "car evaluation" data (http://archive.ics.uci.edu/ml/datasets/Car+Evaluation)
+
+#### Classification: "car evaluation" data 
+## (http://archive.ics.uci.edu/ml/datasets/Car+Evaluation)
 # data(carEvaluation)
 # car.data <- carEvaluation
 
@@ -91,28 +94,43 @@ There is currently not a generic way (at least, I did not find it) to automatica
 # car.class.test <- as.factor(car.data[trainTestIdx == 2, p])
 
 ## compute model : train then test in the same function. 
-## Note that OOB error hardly works due to imbalanced classes.
-## Handle it, using second upper Breiman's bound...
+## use 'categorical' option to better handle  variable importance
 # car.ruf <- randomUniformForest(car.data.train, car.class.train, 
-# xtest = car.data.test, ytest = car.class.test)
+# xtest = car.data.test, ytest = car.class.test, categorical = "all")
 # car.ruf
 
-## get for example two most important features, using table of features
+## get for example two most important features, using the table
 ## we choose "buying" and "safety"
 # summary(car.ruf) 
 
-## compute importance object (getting almost all objects wich could lead to a better explanation) 
-## with deepest level of interactions to get enough points
+## compute importance with deepest level of interactions to get enough points
 # car.ruf.importance <- importance.randomUniformForest(car.ruf,
-# Xtest = car.data.train, maxInteractions = 8)
+# Xtest = car.data.train, maxInteractions = 6)
 
 ## compute and plot partial dependence between "buying" and "safety" on train data
-## heatmap leads to clusters, dependence tells what happens there, class distributions 
-## tell how it happens and one has to connect these with 'importanceObject' figures
-## trick : enlarge then reduce window to see figures
+## is interaction leading to the same class (underlying structure)?
+## is dependence linear or, for categorical variables, how is the effect of cross-tabulating 
+## the variables over each class ? 
+## for which values of the pair is the dependence most effective ?
+
 # pDbetweenPredictors.car.buyingAndSafety <- partialDependenceBetweenPredictors(car.data.train,
 # car.ruf.importance, c("buying", "safety"), whichOrder = "all") 
 
+## Interpretation : 
+## 1 - if "safety" is 'low', with average frequency of (around) 63 percent the 
+## label of the evaluated car would be the same than the one coming from any buying category
+## meaning that, the buying price will not have influence.
+## If safety is 'high', the evaluated car will depend on the buying price...
+## In the same sense, if the buying price is 'very high', the label of the evaluated car 
+## will also depend to the safety category most of the time. 
+## For a high (or lower) buying price, it will be much less dependent.
+## But:
+## 2 - the "heatmap..." states that confidence (more data) will be greater for cases 
+## where buying price is very high (with safety low) or high (with safety high)
+## 3 - Hence looking to the "dependence between predictors",  shows that if buying price is high, 
+## it means that safety must be also high before one draws a conclusion.
+## 4 - Looking "Variable Importance based on interactions" tells which variable dominates 
+## the other when a car is evaluated.
 
 #### Regression : "Concrete Compressive Strength" data 
 ## (http://archive.ics.uci.edu/ml/datasets/Concrete+Compressive+Strength)
@@ -123,6 +141,7 @@ There is currently not a generic way (at least, I did not find it) to automatica
 # n <- nrow(ConcreteCompressiveStrength.data)
 # p <- ncol(ConcreteCompressiveStrength.data)
 
+# set.seed(2015)
 # trainTestIdx <- cut(sample(1:n, n), 2, labels= FALSE)
 
 ## train examples
@@ -138,19 +157,24 @@ There is currently not a generic way (at least, I did not find it) to automatica
 # featureselectionrule = "L1")
 # concrete.ruf
 
+## Assessing test set only 
 ## importance at the deepest level of interactions
 # concrete.ruf.importance <- importance.randomUniformForest(concrete.ruf,
-# Xtest = concrete.data.train, maxInteractions = 8)
+# Xtest = concrete.data.test, maxInteractions = 8)
 
-## compute and plot partial dependence between "Age" and "Cement" on train data, 
+## compute and plot partial dependence between "Age" and "Cement", 
 ## without 3D representation and with filter upon outliers
+
 # pDbetweenPredictors.concrete.cementAndAge <- 
-# partialDependenceBetweenPredictors(concrete.data.train,
+# partialDependenceBetweenPredictors(concrete.data.test,
 # concrete.ruf.importance, c("Age", "Cement"), whichOrder = "all", outliersFilter = TRUE)
 
-## compute and plot partial dependence between "Age" and "Cement" on train data, 
+## compute and plot partial dependence between "Age" and "Cement", 
 ## with 3D representation (slower)
+
 # pDbetweenPredictors.concrete.cementAndAge <- 
-# partialDependenceBetweenPredictors(concrete.data.train,
+# partialDependenceBetweenPredictors(concrete.data.test,
 # concrete.ruf.importance, c("Age", "Cement"), whichOrder = "all", perspective = TRUE)
 }
+
+\concept{partial dependence}

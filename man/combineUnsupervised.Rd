@@ -1,22 +1,22 @@
-\name{combine.unsupervised}
-\alias{combine.unsupervised}
+\name{combineUnsupervised}
+\alias{combineUnsupervised}
 
 %- Also NEED an '\alias' for EACH other topic documented here.
 \title{
   Combine Unsupervised Learning objects
 }
 \description{
-   Combine unsupervised learning objects in order to achieve incremental learning. Only the MDS points are used then standardized before calling a clustering algorithm on all. Note that the function is currently highly experimental
-   with, currently, a lack of applications.
+   Combine unsupervised learning objects in order to achieve incremental learning. Only the MDS (spectral) points are used before calling a clustering algorithm on all. Note that the function is currently highly experimental
+   with a lack of applications.
 }
 \usage{
-combine.unsupervised(\dots)
+combineUnsupervised(\dots)
 }
 
 %- maybe also 'usage' for other objects documented here.
 \arguments{
 	\item{\dots}{
-	  (vector of) objects of class unsupervised, coming from \code{\link{unsupervised.randomUniformForest}}, that needs to be combined.
+	  (enumeration of) objects of class unsupervised, coming from \code{\link{unsupervised.randomUniformForest}}, that needs to be combined.
 	}
 }
 
@@ -41,7 +41,7 @@ combine.unsupervised(\dots)
 
 \seealso{
  \code{\link{update.unsupervised}}, \code{\link{modifyClusters}}, \code{\link{mergeClusters}}, 
- \code{\link{clusteringObservations}}, \code{\link{as.supervised}} 
+ \code{\link{splitClusters}}, \code{\link{clusteringObservations}}, \code{\link{as.supervised}} 
 }
 
 \examples{
@@ -55,28 +55,38 @@ combine.unsupervised(\dots)
 ## 1 - run unsupervised analysis on the first half of dataset 
 
 # subset.1 = 1:floor(nrow(X)/2)
-# wineQualityRed.model.1 = unsupervised.randomUniformForest(X, subset = subset.1, 
-# baseModel = "proximityThenDistance")
+# wineQualityRed.model.1 = unsupervised.randomUniformForest(X, subset = subset.1, depth = 5) 
 
 ## assess roughly the model and visualize
 #  wineQualityRed.model.1
 
 # plot(wineQualityRed.model.1)
 
-## 2 - run unsupervised analysis on the second half of dataset 
-# wineQualityRed.model.2 = unsupervised.randomUniformForest(X, subset = -subset.1)
+## 2 - run unsupervised analysis on the second half of dataset
+# wineQualityRed.model.2 = unsupervised.randomUniformForest(X, subset = -subset.1, depth = 5)
+
+
+## 2.1 if less clusters (than in 1) are got, split the one with the highest number of cases
+## it is the second cluster in our case
+# wineQualityRed.model.2 = splitClusters(wineQualityRed.model.2, 2)
+
+## roughly assess and, eventually, merge and split again (with different seeds) in order 
+## to be confident about the new clustering
+# wineQualityRed.model.2
 
 ## 3 - combine
 # wineQualityRed.combinedModel = 
-# combine.unsupervised(wineQualityRed.model.1, wineQualityRed.model.2)
+# combineUnsupervised(wineQualityRed.model.1, wineQualityRed.model.2)
 
 ## visualize and plot
 # wineQualityRed.combinedModel
 # plot(wineQualityRed.combinedModel)
 
-# compare with the full data
-# wineQualityRed.model = unsupervised.randomUniformForest(X, 
-# baseModel = "proximityThenDistance")
+## compare with the full data and same modelling
+# wineQualityRed.model = unsupervised.randomUniformForest(X, depth = 5)
+
+## or increase depth (more computation and default option) for a more detailed model
+# wineQualityRed.model = unsupervised.randomUniformForest(X)
 }
 
 \keyword{unsupervised}

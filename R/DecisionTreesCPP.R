@@ -53,9 +53,10 @@ CheckSameValuesInAllAttributes <- function(X, n, m, nodeMinSize)
 options.filter <- function(X, Y, nodeMinSize, o.bootstrap = FALSE, o.treeSubsampleRate = FALSE, o.treeOverSampling = 0, o.targetClass = -1, o.OOB = FALSE, o.treeRebalancedSampling = FALSE) 
 {
 	dimX = dim(X)
-	n = dimX[1]
+	n = nn = dimX[1]
 	p = dimX[2]
-	follow.idx = 1:n	
+	follow.idx = 1:n
+	flagBalanced = FALSE
 	if (!is.numeric(o.treeRebalancedSampling))
 	{
 		if (o.treeRebalancedSampling)
@@ -67,8 +68,9 @@ options.filter <- function(X, Y, nodeMinSize, o.bootstrap = FALSE, o.treeSubsamp
 			classesSample = NULL			
 			for (i in 1:length(classes))
 			{ 	classesSample = c(classesSample, sample(which(Y == classes[i]), sampleSize)) 	}			
-			follow.idx = sortCPP(classesSample)
-			n = length(follow.idx)
+			follow.idx = sortCPP((1:n)[classesSample])
+			n = length(follow.idx)			
+			if (o.OOB) { OOBBalancedIdx = (1:nn)[-follow.idx]; flagBalanced = TRUE }
 		}
 	}
 	else
@@ -86,8 +88,9 @@ options.filter <- function(X, Y, nodeMinSize, o.bootstrap = FALSE, o.treeSubsamp
 			classesSample = c(classesSample, sample(classesSampleSize, o.treeRebalancedSampling[i], 
 			replace = if (classesSampleSize >  o.treeRebalancedSampling[i]) { FALSE } else { TRUE })) 	
 		}	
-		follow.idx = sortCPP(classesSample)
+		follow.idx = sortCPP((1:n)[classesSample])
 		n = length(follow.idx)
+		if (o.OOB) { OOBBalancedIdx =  (1:nn)[-follow.idx]; flagBalanced = TRUE }
 	}	
 	if (o.treeOverSampling != 0)
 	{ 
@@ -128,7 +131,8 @@ options.filter <- function(X, Y, nodeMinSize, o.bootstrap = FALSE, o.treeSubsamp
 			if (length(rm.idx) > 0)  { OOBIdx = OOBIdx[-rm.idx] }			
 		}		
 		follow.idx = follow2.idx
-	}	
+	}
+	if (flagBalanced & o.OOB) {  OOBIdx = unique(c(OOBIdx, OOBBalancedIdx))  }	
 	return(list(X = X[follow.idx,], Y = Y[follow.idx], n = n, p = p, OOBIdx = OOBIdx, followIdx = follow.idx))
 }
 
@@ -416,8 +420,9 @@ moreNodes = FALSE)
 				{	
 					U.coeff <- 2*runif(1)
 					candidateVariables <- sample(featuresIdx, max(2, floor(U.coeff*p)), replace = TRUE)	
-				}				
-				if (length(candidateVariables) > (n*p)) { candidateVariables = sample(candidateVariables, n*p) }
+				}
+				np = n*p
+				if (length(candidateVariables) > (np)) { candidateVariables = sample(candidateVariables, np) }
 				candidateVariables <- sortCPP(candidateVariables)
 				catVar = 0 
 				if (!is.null(treeCatVariables))
@@ -811,7 +816,7 @@ regression = TRUE)
 			logNodeVector = round(log(nodeVector),0)
 			nLevels = logNodeVector 
 			appendedNewObject = matrix(0, length(nodeVector), 8)
-			colnames(appendedNewObject) =  colnames(newObject)
+			colnames(appendedNewObject) = colnames(newObject)
 			appendedNewObject[, "status"] = -1
 			
 			for (i in seq_along(nodeVector))
