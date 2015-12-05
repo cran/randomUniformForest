@@ -11,8 +11,8 @@ Ensemble model for classification, regression and unsupervised learning, based o
 \tabular{ll}{
 Package: \tab randomUniformForest\cr
 Type: \tab Package\cr
-Version: \tab 1.1.1\cr
-Date: \tab 2014-12-03\cr
+Version: \tab 1.1.2\cr
+Date: \tab 2015-01-05\cr
 License: \tab BSD_3_clause\cr
 }
 
@@ -42,6 +42,10 @@ Usage:         library(randomUniformForest)\cr
  English title : \emph{Random Uniform Forests and Irregularity Detection in social Security contributions}.\cr
  Link : https://www.dropbox.com/s/q7hbgeafrdd8qtc/Saip_Ciss_These.pdf?dl=0
  
+ Ciss, S., 2014a. Random Uniform Forests. Pre-print. 
+ 
+ Ciss, S., 2014b. Variable Importance in Random Uniform Forests. Pre-print. 
+ 
  Cox, T. F., Cox, M. A. A., 2001. \emph{Multidimensional Scaling. Second edition}. Chapman and Hall. 
  
  Devroye, L., Gyorfi, L., Lugosi, G., 1996. \emph{A probabilistic theory of pattern recognition}. New York: Springer.
@@ -49,15 +53,15 @@ Usage:         library(randomUniformForest)\cr
  Dietterich, T.G., 2000. \emph{Ensemble Methods in Machine Learning}, in : Multiple Classifier Systems, Lecture Notes in Computer Science.
  Springer Berlin Heidelberg, pp. 1-15. 
  
- Efron, B., 1979. \emph{Bootstrap Methods: Another Look at the Jackknife}. The Annals of Statistics 7, 1-26.
+ Efron, B., 1979. Bootstrap Methods: Another Look at the Jackknife. \emph{The Annals of Statistics} 7, 1-26.
  
- Gower, J. C., 1966. \emph{Some distance properties of latent root and vector methods used in multivariate analysis}. Biometrika 53, 325-328.
+ Gower, J. C., 1966. Some distance properties of latent root and vector methods used in multivariate analysis. \emph{Biometrika} 53, 325-328.
  
  Hastie, T., Tibshirani, R., Friedman, J.J.H., 2001. \emph{The elements of statistical learning}. New York: Springer. 
  
- Ho, T.K., 1998. \emph{The random subspace method for constructing decision forests}. IEEE Transactions on Pattern Analysis and Machine Intelligence 20, 832-844. 
+ Ho, T.K., 1998. The random subspace method for constructing decision forests. \emph{IEEE Transactions on Pattern Analysis and Machine Intelligence} 20, 832-844. 
  
- Lin, Y., Jeon, Y., 2002. \emph{Random Forests and Adaptive Nearest Neighbors}. Journal of the American Statistical Association 101-474.
+ Lin, Y., Jeon, Y., 2002. Random Forests and Adaptive Nearest Neighbors. \emph{Journal of the American Statistical Association} 101-474.
  
  Vapnik, V.N., 1995. \emph{The nature of statistical learning theory}. Springer-Verlag New York, Inc., New York, NY, USA.
 }

@@ -13,7 +13,8 @@ partialDependenceBetweenPredictors(Xtest, importanceObject, features,
 	perspective = FALSE,
 	outliersFilter = FALSE,
 	maxClasses = max(10, which.is.factor(Xtest[,features, drop = FALSE], 
-	count = TRUE)))
+	count = TRUE)),
+	bg = "grey")
 }
 
 \arguments{
@@ -39,6 +40,9 @@ partialDependenceBetweenPredictors(Xtest, importanceObject, features,
   for variables with discrete values that need to be treated as categorical for a better visualization and
   that have more than 'maxClasses' unique values. Or for categorical variables that one knows to be categorical but
   whose data are stored as a R matrix.
+}
+  \item{bg}{
+  background color for the plot. Type 'bg = "none"' to get a white background.
 }
 }
 

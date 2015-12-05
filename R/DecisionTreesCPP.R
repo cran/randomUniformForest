@@ -20,7 +20,7 @@
 
 # END OF LICENSE 
 
-CheckSameValuesInLabels <- function(Y, n, m, nodeMinSize)
+CheckSameValuesInLabels <- function(Y, n, nodeMinSize)
 {
 	flagZeros = TRUE
 	if (n > nodeMinSize)
@@ -50,8 +50,7 @@ CheckSameValuesInAllAttributes <- function(X, n, m, nodeMinSize)
 	return(flagZeros)
 }
 
-options.filter <- function(X, Y, nodeMinSize, o.bootstrap = FALSE, o.treeSubsampleRate = FALSE, o.treeOverSampling = 0, o.targetClass = -1, 
-	o.OOB = FALSE, o.treeRebalancedSampling = FALSE) 
+options.filter <- function(X, Y, nodeMinSize, o.bootstrap = FALSE, o.treeSubsampleRate = FALSE, o.treeOverSampling = 0, o.targetClass = -1, o.OOB = FALSE, o.treeRebalancedSampling = FALSE) 
 {
 	dimX = dim(X)
 	n = dimX[1]
@@ -120,7 +119,7 @@ options.filter <- function(X, Y, nodeMinSize, o.bootstrap = FALSE, o.treeSubsamp
 	    bootstrap.idx = sortCPP(sample(n, n, replace = TRUE))				
 		follow2.idx = follow.idx[bootstrap.idx]
 		
-		while(CheckSameValuesInAllAttributes(X[follow2.idx,], n, p, nodeMinSize) | CheckSameValuesInLabels(Y[follow2.idx], n, p, nodeMinSize) )
+		while(CheckSameValuesInAllAttributes(X[follow2.idx,], n, p, nodeMinSize) | CheckSameValuesInLabels(Y[follow2.idx], n, nodeMinSize) )
 		{	bootstrap.idx = sample(n, n, replace = TRUE); follow2.idx = follow.idx[bootstrap.idx]	}
 		if (o.OOB)
 		{ 	 
@@ -130,7 +129,7 @@ options.filter <- function(X, Y, nodeMinSize, o.bootstrap = FALSE, o.treeSubsamp
 		}		
 		follow.idx = follow2.idx
 	}	
-	return(list(X = X[follow.idx,], Y = Y[follow.idx], n = n, p = p, OOBIdx = OOBIdx))
+	return(list(X = X[follow.idx,], Y = Y[follow.idx], n = n, p = p, OOBIdx = OOBIdx, followIdx = follow.idx))
 }
 
 uniformDecisionTree <- function(X, Y, nodeMinSize = 1, maxNodes = Inf, treeFeatures = floor(4/3*ncol(X)), 
@@ -150,7 +149,9 @@ treeBagging = FALSE,
 randomFeature = FALSE, 
 treeCatVariables = NULL,
 outputPerturbation = FALSE, 
-unsupervised = FALSE) 
+unsupervised = FALSE,
+moreThreadsProcessing = FALSE, 
+moreNodes = FALSE) 
 {
 	{
 		set.seed(sample(1e9,1))
@@ -164,7 +165,7 @@ unsupervised = FALSE)
 		randomNodesize = FALSE
 		if (is.character(nodeMinSize))
 		{ 
-			nodeMinSize = sample(max(floor(nrow(X)/2),1),1) 
+			nodeMinSize = sample(seq(1,min(50,nrow(X)), by = 5),1)
 			randomNodesize = TRUE
 		}		
 		if (is.character(maxNodes)) { maxNodes = sample(3:floor(nrow(X)),1) }				
@@ -176,22 +177,35 @@ unsupervised = FALSE)
 			regression = regression)
 			treeOverSampling = 0 			 
 		}
-		object.filtered <- options.filter(X, Y, nodeMinSize, o.bootstrap = bootstrap, 
-		o.treeSubsampleRate = treeSubsampleRate, o.treeOverSampling = treeOverSampling, o.targetClass = targetClass, o.OOB = OOB, o.treeRebalancedSampling = treeRebalancedSampling)
-			
-		nX = nrow(X)
-		init.Y = rep(0, nX)
-		init.X = matrix(0, nX, ncol(X)) 
-		init.Y = object.filtered$Y
-		init.X = object.filtered$X
-		n = object.filtered$n
-		p = object.filtered$p
-		OOBIdx = object.filtered$OOBIdx		
+		if (moreThreadsProcessing) { idxList = list();	kk = 1; nodeVector = vector() }
+		if (!moreNodes)
+		{
+			object.filtered <- options.filter(X, Y, nodeMinSize, o.bootstrap = bootstrap, o.treeSubsampleRate = treeSubsampleRate, o.treeOverSampling = treeOverSampling, o.targetClass = targetClass, o.OOB = OOB, o.treeRebalancedSampling = treeRebalancedSampling)
+				
+			nX = nrow(X)
+			init.Y = rep(0, nX)
+			init.X = matrix(0, nX, ncol(X)) 
+			init.Y = object.filtered$Y
+			init.X = object.filtered$X
+			n = object.filtered$n
+			p = object.filtered$p
+			OOBIdx = object.filtered$OOBIdx
+			followIdx = object.filtered$followIdx
+		}
+		else
+		{
+			init.Y = Y
+			init.X = X
+			n = nrow(X)
+			p = ncol(X)
+			OOBIdx = 0
+		}
+		if (is.character(treeDepth)) { treeDepth = sample(3:round(log(nX)/log(2),0), 1) }
 		if (nodeMinSize >= n) { stop("Minimal number of observations (nodesize) cannot be greater than sample size.\n") }
 		m = treeFeatures
-		if (treeBagging) { m = min(p, treeFeatures) }		
+		if (treeBagging) { m = min(p, treeFeatures); treeFeatures = m }		
 		mCoeff = m/p
-		iGain = iGain.tmp = rep(0, treeFeatures)
+		iGain = iGain.tmp = rep(0, m)
 		minNodes = 3
 		thresholdLimit = 0 
 		if (!regression) 
@@ -213,7 +227,7 @@ unsupervised = FALSE)
 		}
 		else
 		{  
-			if (gainFunction == "random") {	gainFunction = sample(  c("L1", "L2"), 1) }
+			if (gainFunction == "random") {	gainFunction = sample(c("L1", "L2"), 1) }
 			classes = init.Y 
 			nClasses = 1		   
 			if (!is.null(treeDepthControl))
@@ -247,7 +261,7 @@ unsupervised = FALSE)
 		rmVar = NULL
 	}	
 	{
-		rm(object.filtered)	
+		if (moreNodes == FALSE) { rm(object.filtered) }
 		allDim = featuresIdx = 1L:p
 		flagOptimization_1 = 0L		
 		if (treeBagging)  { flagOptimization_1 = 1L }		
@@ -274,7 +288,8 @@ unsupervised = FALSE)
 			flag = 0
 			pp = length(rmVarList[[k]])
 		}
-		if ( (k >= minNodes) & ( (pp >= p) | (k >= cteDepth) | (k >= maxNodes)) )
+		allSameValues <- CheckSameValuesInAllAttributes(X, n, p, nodeMinSize)
+		if ( allSameValues | ((k >= minNodes) & ( (pp >= p) | (k >= cteDepth) | (k >= maxNodes))) )
 		{	
 			if ( ((n != 0) & (dataSpaceList[[k]][1] != 0)) | (pp >= p))
 			{  
@@ -282,13 +297,36 @@ unsupervised = FALSE)
 				if (regression)  { Tree[k,] <- c(genericNode(k, -1), Leaf) }
 				else { Tree[k,] <- c(genericNode(k, -1), Leaf$Class) }
 				nodes.nb[k] = n
+				
+				if (moreThreadsProcessing & !allSameValues)
+				{ 
+					if (length(unique(Y)) > 1)
+					{
+						idxList[[kk]] = dataSpaceList[[k]]
+						nodeVector[kk] = k
+						kk = kk + 1	
+					}
+				}				
 			}
 			else
 			{	
 				previous.k <- which(Tree == k, arr.ind = TRUE)[1] 
-				Y <- init.Y[dataSpaceList[[previous.k]]]				
-				nn = length(dataSpaceList[[previous.k]])				
-				Leaf <- leafNode(Y, nn, nClasses, classes, l.classwt = treeClasswt, l.regression = regression)				
+				previousIdx = dataSpaceList[[previous.k]]
+				Y <- init.Y[previousIdx]				
+				nn = length(previousIdx)		
+				Leaf <- leafNode(Y, nn, nClasses, classes, l.classwt = treeClasswt, l.regression = regression)
+
+				if (moreThreadsProcessing)
+				{ 
+					allSameValues <- CheckSameValuesInAllAttributes(init.X[previousIdx, ], nn, p, nodeMinSize)
+					if ( (length(unique(Y)) > 1) & !allSameValues )
+					{
+						idxList[[kk]] = previousIdx
+						nodeVector[kk] = previous.k
+						kk = kk + 1	
+					}
+				}		
+				
 				if (regression)  { Tree[k,] <- c(genericNode(k, -1), Leaf) }
 				else { Tree[k,] <- c(genericNode(k, -1), Leaf$Class) }
 				nodes.nb[k] = nn
@@ -299,7 +337,7 @@ unsupervised = FALSE)
 		}
 		else
 		{
-			if ((k >= minNodes) & CheckSameValuesInLabels(Y, n, p, nodeMinSize) ) 
+			if ((k >= minNodes) & CheckSameValuesInLabels(Y, n, nodeMinSize) ) 
 			{ 
 				Tree[k,] <- c( genericNode(k, -1), leafNode(Y, n, nClasses, classes, l.classwt = treeClasswt, 
 							which.values = "output", l.regression = regression) )				
@@ -327,15 +365,16 @@ unsupervised = FALSE)
 				}
 				else
 				{  
-					YGain = if (!is.null(treeDepthControl)) { 0 } else { sample(c(0, 0.01),1)  }
+					YGain = if (!is.null(treeDepthControl)) { 0 } else { runif(1,0,0.01)  }
 					classes = 0 
 				}  
 				if ( !is.null(rmVarList[[k]]) )
 				{	
 					previousFeaturesIdx = featuresIdx
-					featuresIdx = allDim[-rmVarList[[k]]]					
-					m = max(1, floor(mCoeff*length(featuresIdx))) 
+					featuresIdx = allDim[-rmVarList[[k]]]
 					if (length(featuresIdx) == 0) { featuresIdx = previousFeaturesIdx }
+					if (treeBagging) { m = length(featuresIdx) }
+					else  { m = max(1, floor(mCoeff*length(featuresIdx))) }
 				}
 				else	
 				{ 	
@@ -365,7 +404,7 @@ unsupervised = FALSE)
 						if ( (k <= randomLimit) & (m >= 2) )
 						{   
 							U.coeff = runif(1) 
-							candidateVariables = sample(featuresIdx, max(2,floor(U.coeff*2*p)), replace = TRUE)	
+							candidateVariables = sample(featuresIdx, max(2,floor(U.coeff*4*p)), replace = TRUE)	
 						}
 						else
 						{ flagOptimization_1 = 1 }					
@@ -391,7 +430,9 @@ unsupervised = FALSE)
 					}					
 					if (!is.null(catVar)) 
 					{ 
-						catVar <- candidateVariables[catVar]												
+						XTmp <- X[, candidateVariables, drop = FALSE]
+						catVarOld = catVar
+						catVar = candidateVariables[catVar]												
 						for (j in 1:length(catVar))
 						{
 							tempXcat = X[,catVar[j]]
@@ -399,21 +440,26 @@ unsupervised = FALSE)
 							if (length(uniquetempXcat) > 1)
 							{
 								dummy <- sample(uniquetempXcat, 2)
-								dummyIdx = which(tempXcat == dummy[1])
+								dummyIdx <- which(tempXcat == dummy[1])
 								tempXcat[dummyIdx] = dummy[1]
 								tempXcat[-dummyIdx] = dummy[2]
 							}
-							X[ ,catVar[j]] = tempXcat
+							XTmp[,catVarOld[j]]  = tempXcat
 						}
 					}
 					else
-					{ catVar = 0 }
+					{ 
+						catVar = 0 
+						XTmp <- X[, candidateVariables, drop = FALSE]
+					}
 				}
-				XTmp <- X[, candidateVariables, drop = FALSE]
+				else
+				{	XTmp <- X[, candidateVariables, drop = FALSE]	}
 				if (regression | unsupervised) { variablesLength <- checkUniqueObsCPP(XTmp[, ,drop = FALSE])	} 
 				else  
 				{ 
-					sampleIdx = sample(n, min(n,16)) 
+					nX = nrow(X)
+					sampleIdx = sample(nX, min(nX,16)) 
 					variablesLength <- checkUniqueObsCPP(XTmp[sampleIdx, ,drop = FALSE])
 				}
 				idxVariableLength <- which(variablesLength != 1)
@@ -472,7 +518,7 @@ unsupervised = FALSE)
 					if (na.gain.length == nCurrentFeatures) {  iGain = rep(0, nCurrentFeatures) }
 					else {	if (na.gain.length > 0) {  iGain[na.gain] = 0 }  }
 				}				
-				if (randomFeature & (nIdxVariableLength > 0) )
+				if (randomFeature & (nIdxVariableLength > 0))
 				{
 				    idxBestFeature <- if (length(thresholds) > 1) { sample(seq_along(thresholds), 1) } else  { 1 }							
 					if (regression)
@@ -584,6 +630,7 @@ unsupervised = FALSE)
 		if ( (k < minNodes) & (endCondition == 0) )
 		{ 
 			set.seed(sample(1e9,1))
+			if (moreThreadsProcessing) { idxList = list();	kk = 1; nodeVector = vector() }
 			iGain = iGain.tmp = rep(0, treeFeatures)
 			prev.iGain = vector()
 			k = endCondition = idxBestFeature = allNodes = 1L			
@@ -677,8 +724,23 @@ unsupervised = FALSE)
 		if (regression) Tree[NApredictionIdx, "prediction"] = sum(init.Y)/length(init.Y)
 		else Tree[NApredictionIdx, "prediction"] = sample(init.Y, 1)
 	}
-	if (OOB) {	return(list(Tree = Tree, OOB.idx = OOBIdx))	}
-	else {	return(list(Tree = Tree)) }
+	if (OOB) 
+	{	
+		if (moreThreadsProcessing) 
+		{ 
+			return(list(Tree = Tree, idxList = idxList, nodeVector = nodeVector, OOB.idx = OOBIdx, 
+			followIdx = followIdx)) 
+		}
+		else 
+		{ return(list(Tree = Tree, OOB.idx = OOBIdx))	}
+	}
+	else 
+	{	
+		if (moreThreadsProcessing) 	
+		{ return(list(Tree = Tree, idxList = idxList, nodeVector = nodeVector, followIdx = followIdx)) }
+		else 
+		{ return(list(Tree = Tree)) }	
+	}	
 }
 
 genericNode <- function(k, status) c(k, 0, 0, 0, 0, status)
@@ -709,6 +771,116 @@ leafNode <- function(Y, n, nClasses, classes, which.values = "input", l.regressi
 	else
 	{ return(Y[1]) }
 }
+
+reduce.trees <- function(object, X, Y, 
+newDepth = NULL, 
+newMaxNodes = NULL, 
+atRandom = FALSE,
+regression = TRUE)
+{
+	n = nrow(X)
+	nObject = nrow(object)
+	if (!is.null(newDepth)) {  newMaxNodes = 2^newDepth } 
+	if (atRandom) 
+	{ 
+		set.seed(sample(1e9,1))
+		newMaxNodes = sample(floor(0.125*nObject):nObject, 1)
+	}
+		
+	if (newMaxNodes < nObject)
+	{
+		predictedObject <- predictDecisionTree(object, X)
+		newObject = object[1:newMaxNodes, ]
+				
+		nodeVector = which(newObject[,"left daughter"] > newMaxNodes)
+		newObject[nodeVector,c(1:4,8)] = 0
+		newObject[nodeVector, "status"] = -1
+		logNodeVector = round(log(nodeVector),0)
+		nLevels = logNodeVector 
+		
+		for (i in seq_along(nodeVector))
+		{	
+			values <- rewind.trees(object, nodeVector[i], X = X, nLevels = nLevels[i])$idx	
+			if (regression) { newObject[nodeVector[i], "prediction"] = sum(Y[values])/length(values) }
+			else {  newObject[nodeVector[i], "prediction"] = as.numeric(names(which.max(table(Y[values])))) }
+		}
+		
+		nodeVector = which(newObject[,"right daughter"] > newMaxNodes)
+		if (length(nodeVector) > 0)
+		{
+			logNodeVector = round(log(nodeVector),0)
+			nLevels = logNodeVector 
+			appendedNewObject = matrix(0, length(nodeVector), 8)
+			colnames(appendedNewObject) =  colnames(newObject)
+			appendedNewObject[, "status"] = -1
+			
+			for (i in seq_along(nodeVector))
+			{	
+				values <- rewind.trees(object, nodeVector[i], X = X, nLevels = nLevels[i])$idx	
+				if (regression) { appendedNewObject [i, "prediction"] = sum(Y[values])/length(values) }
+				else { appendedNewObject[i, "prediction"] = as.numeric(names(which.max(table(Y[values])))) }
+				appendedNewObject[, "nodes"] = length(values)
+			}
+			
+			newObject = rbind( newObject, appendedNewObject)
+			rownames(newObject) = 1:nrow(newObject)
+		}
+		object = newObject
+	}
+	
+	return(object)
+}
+
+rewind.trees <- function(Tree, currentNode, X = NULL, nLevels = 3)
+{
+	rulesMatrix = matrix(NA, nLevels, 3)
+	NAIdx = NULL
+	for (i in 1:nLevels)
+	{
+		idx = which(Tree[, "left daughter"] == currentNode)
+		lengthIdx = length(idx)
+		if (lengthIdx == 0) 
+		{	idx = which(Tree[, "right daughter"] == currentNode); lengthIdx = length(idx) }
+		splitVar = Tree[idx, "split var"][1]
+		splitPoint = Tree[idx, "split point"][1]
+		if (lengthIdx > 0) 	{	rulesMatrix[i,] = c(splitVar, splitPoint, -1)	}
+		else  {  NAIdx = c(NAIdx, i) }
+		currentNode = idx[1]
+	}
+	colnames(rulesMatrix) = c("split var", "split point", "direction")
+	
+	if (!is.null(NAIdx)) 
+	{ 
+		rulesMatrix = rulesMatrix[-NAIdx, , drop = FALSE] 
+		nLevels = nLevels - length(NAIdx)
+	}
+	
+	if (is.null(X))
+	{	return(rulesMatrix)	}
+	else
+	{
+		n = nrow(X) 
+		XIdx = tempIdx = rep(0, n)
+		
+		if (nLevels > 0 )
+		{
+			for (i in 1:nLevels)
+			{
+				#if (!is.na(rulesMatrix[i,1]))
+				{
+					if (rulesMatrix[i,3] == 1) 	{  tempIdx = which(X[ ,rulesMatrix[i,1]] > rulesMatrix[i,2]) }
+					else {  tempIdx = which(X[ ,rulesMatrix[i,1]] <= rulesMatrix[i,2]) }
+					XIdx[tempIdx] = XIdx[tempIdx] + 1
+				}
+			}
+		}
+		else
+		{  idx = 1:n }
+		
+		return(list(rules = rulesMatrix, idx = which(XIdx >= nLevels)))
+	}
+}
+
 
 onlineClassify <- function(treeObject, X, c.regression = 0)
 {

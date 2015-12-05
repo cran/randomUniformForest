@@ -45,6 +45,8 @@ rUniformForest.big(X, Y = NULL,
 	na.action = c("fastImpute", "accurateImpute", "omit"),
 	logX = FALSE,
 	classcutoff = c(0,0),
+	subset = NULL,
+	usesubtrees = FALSE,
 	threads = "auto",
 	parallelpackage = "doParallel")
 }
@@ -160,6 +162,12 @@ rUniformForest.big(X, Y = NULL,
 	}
 	\item{classcutoff}{
 	    see \code{\link{randomUniformForest}}.
+	}
+	\item{subset}{
+		see \code{\link{randomUniformForest}}.
+	}
+	\item{usesubtrees}{
+		see \code{\link{randomUniformForest}}.
 	}
 	\item{threads}{
 	    see \code{\link{randomUniformForest}}.

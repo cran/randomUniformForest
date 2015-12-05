@@ -8,7 +8,7 @@
 \alias{insert.in.vector} \alias{insert.in.vector2}	\alias{is.wholenumber}	\alias{keep.index}	\alias{lagFunction}
 \alias{leafNode}	\alias{localTreeImportance}	\alias{localVariableImportance} \alias{majorityClass}	\alias{matrix2factor}	\alias{mergeLists}	\alias{min_or_max}	\alias{modX} \alias{monitorOOBError}	\alias{na.impute}	\alias{na.missing}	\alias{na.replace}	\alias{ndcg} \alias{onlineClassify}	\alias{onlineCombineRUF}	\alias{optimizeFalsePositives} \alias{options.filter}	\alias{outputPerturbationSampling}	\alias{outsideConfIntLevels} \alias{overSampling}	\alias{parallelNA.replace}	\alias{permuteCatValues}
 \alias{persp.withcol}	
-\alias{plotTreeCore}	\alias{plotTreeCore2}	\alias{predictDecisionTree} \alias{predictionsVsResponses}	\alias{pseudoHuberDist}	\alias{pseudoNAReplace} \alias{rUniformForest.merge}	\alias{rUniformForestPredict}	\alias{randomCombination}
+\alias{plotTreeCore}	\alias{plotTreeCore2}	\alias{predictDecisionTree} \alias{predictionvsResponses}	\alias{pseudoHuberDist}	\alias{pseudoNAReplace} \alias{rUniformForest.merge}	\alias{rUniformForestPredict}	\alias{randomCombination}
 \alias{randomUniformForestCore}	\alias{randomUniformForestCore.big}	\alias{randomUniformForestCore.merge}
 \alias{randomUniformForestCore.predict}	\alias{randomWhichMax}	\alias{randomize} \alias{rankingTrainData} \alias{residualsRandomUniformForest}	\alias{rm.InAList} \alias{rm.correlation}	\alias{rm.string}	\alias{rm.tempdir}	\alias{rmInAListByNames}	\alias{rmInf}
 \alias{rmNA} 
@@ -17,7 +17,7 @@
 \alias{uniformDecisionTree}	\alias{vector2factor}	\alias{vector2matrix}	\alias{weightedVote} \alias{weightedVoteModel}	\alias{which.is.factor}	\alias{which.is.na} \alias{which.is.wholenumber} \alias{myAUC} \alias{matrix2factor2} \alias{NATreatment}
 \alias{filterOutliers} 
 \alias{which.is.nearestCenter} \alias{variance} \alias{interClassesVariance} \alias{intraClassesVariance}  \alias{kBiggestProximities} \alias{gap.stats} \alias{kMeans} \alias{hClust} \alias{proximitiesMatrix} \alias{observationsImportance} \alias{A2Rplot} \alias{A2Rplot.default} \alias{A2Rplot.hclust} \alias{cutree.order}  \alias{splitVarCore} \alias{timeStampCore}
-\alias{MDSscale} \alias{mergeOutliers} \alias{unsupervised2supervised}
+\alias{MDSscale} \alias{mergeOutliers} \alias{unsupervised2supervised} \alias{scalingMDS} \alias{rewind.trees} \alias{reduce.trees} \alias{updateCombined.unsupervised}
 	
 \title{All internal functions}
 

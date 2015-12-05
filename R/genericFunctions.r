@@ -169,7 +169,7 @@ factor2matrix = function(X, threads = "auto")
 		np = dim(X)
 		if  (max(np) < 1000)
 		{			
-			for (j in 1:ncol(X))
+			for (j in 1:np[2])
 			{	
 				if (is.character(X[,j]))	{ X[,j] = as.factor(X[,j]) }
 				
@@ -240,7 +240,10 @@ NAfactor2matrix <- function(X, toGrep = "")
 		}
 	}
 	else
-	{	toGrepIdx =  which(X == toGrep, arr.ind = TRUE)  }
+	{	
+		if (toGrep == "anythingParticular")	{ toGrepIdx = integer(0) }
+		else  { toGrepIdx = which(X == toGrep, arr.ind = TRUE)  }		
+	}
 	
 	NAIdx = which(is.na(X), arr.ind = TRUE)
 	
@@ -1423,12 +1426,27 @@ generic.smoothing.log = function(X, threshold = 0.05, filtering = median ,  k = 
 
 confusion.matrix = function(predY, Y)
 {
-	n = length(Y)
-	TrueClass.sizes = levels(as.factor(Y))
-	classes = as.numeric( TrueClass.sizes )
-	k =length(classes)
-	TP = vector(length = length(classes))
+	if ( (is.vector(predY) & !is.vector(Y)) | (!is.vector(predY) & is.vector(Y)) ) 
+	stop("Predictions and responses do not have the same class.")
+	if (length(predY) != length(Y)) stop("Predictions and responses do not have the same length.")
+	if ( (class(Y) == "factor") | (class(predY) == "factor") ) 
+	{  
+		trueClasses = levels(as.factor(Y))
+		predY = as.numeric(predY);  Y = as.numeric(Y)
+		classes = 1:length(trueClasses)
+	}
+	else
+	{
+		trueClasses = 1:length(tabulate(Y))
+		predClasses = 1:length(tabulate(predY))
+		if (length(predClasses) > length(trueClasses)) 	{  trueClasses = predClasses }
+		classes = trueClasses
+	}
 	
+	n = length(Y)
+	k = length(classes)
+	TP = vector(length = length(classes))
+		
 	if (k == 2)
 	{ 	FP = vector(length = length(classes))	}
 	else
@@ -1455,8 +1473,8 @@ confusion.matrix = function(predY, Y)
 	else
 	{	ConfMat = FP	}
 	
-	rownames(ConfMat) = TrueClass.sizes
-	colnames(ConfMat) = TrueClass.sizes
+	rownames(ConfMat) = trueClasses
+	colnames(ConfMat) = trueClasses
 	class.error = round(1- diag(ConfMat)/rowSums(ConfMat),4)
 	
 	ConfMat = cbind(ConfMat,class.error)
@@ -1824,55 +1842,33 @@ optimizeFalsePositives = function(X, Y, classes, o.positive = classes[2], o.rank
 	return(list(cost = cost, threshold = threshold,  accuracy = accuracy , expected.matches = expected.matches,  AUC = AUC))
 }
 
-someErrorType = function(modelPrediction, Y, generic = TRUE, regression = FALSE)
+someErrorType <- function(modelPrediction, Y, regression = FALSE)
 {
 	#require(pROC)	
-	if (generic)
-	{
-		if (modelPrediction$regression)
-		{  return(list(error = L2Dist(Y, modelPrediction$prediction)/length(Y) ) ) }
-		else
-		{  
-			if ( (min(Y) == 1) & ( (min(as.numeric(modelPrediction$prediction)) == 0) | (max(as.numeric(modelPrediction$prediction)) == 1) )  )
-			{	modelPrediction$prediction  =  modelPrediction$prediction + 1	}		
-			confusion = confusion.matrix(as.numeric(modelPrediction$prediction),Y)
-			if (length(unique(Y)) == 2 )
-			{	
-				return(list( error = generalization.error(confusion), confusion = confusion, AUC = pROC::auc(Y, as.numeric(modelPrediction$prediction)), AUPR = myAUC(as.numeric(modelPrediction$prediction), as.numeric(Y), falseDiscoveryRate = TRUE)$auc))  	
-			}
-			else
-			{	return(list( error = generalization.error(confusion), confusion = confusion) ) 	}
-		}	
+	if (regression)
+	{  
+		n = length(Y)
+		MSE <- L2Dist(Y, modelPrediction)/n
+		return(list(error = MSE, meanAbsResiduals = sum(abs(modelPrediction - Y))/n, Residuals = summary(modelPrediction - Y), percent.varExplained = max(0, 100*round(1 - MSE/var(Y),4)) ) )
 	}
 	else
-	{
-		modelPrediction = filter.object(modelPrediction)
-		modelPrediction = modelPrediction$majority.vote
-		
-		if (regression)
-		{  
-			n = length(Y)
-			MSE <- L2Dist(Y, modelPrediction)/n
-			return(list(error = MSE, meanAbsResiduals = sum(abs(modelPrediction - Y))/n, Residuals = summary(modelPrediction - Y), percent.varExplained = max(0, 100*round(1 - MSE/var(Y),4)) ) )
+	{  
+		confusion = confusion.matrix(modelPrediction,Y)
+		if (length(unique(Y)) == 2 )
+		{	
+			return(list( error = generalization.error(confusion), confusion = confusion, 
+			AUC = pROC::auc(Y, as.numeric(modelPrediction)), AUPR = myAUC(as.numeric(modelPrediction), as.numeric(Y), falseDiscoveryRate = TRUE)$auc) )
 		}
 		else
-		{  
-			confusion = confusion.matrix(modelPrediction,Y)
-			if (length(unique(Y)) == 2 )
-			{	
-				return(list( error = generalization.error(confusion), confusion = confusion, AUC = pROC::auc(Y, modelPrediction), AUPR = myAUC(as.numeric(modelPrediction), as.numeric(Y), falseDiscoveryRate = TRUE)$auc) ) 
-			}
-			else
-			{	return(list( error = generalization.error(confusion), confusion = confusion))	}
-		}	
-	}
+		{	return(list( error = generalization.error(confusion), confusion = confusion))	}
+	}	
 }
 
 gMean <- function(confusionMatrix, precision = FALSE)  
 {
 	p = ncol(confusionMatrix)
 	if (precision) 	{  acc = rmNA(diag(confusionMatrix[,-p])/rowSums(confusionMatrix[,-p])) }	
-	else { 	acc = diag(confusionMatrix[,-p])/colSums(confusionMatrix[,-p])  }
+	else { 	acc = rmNA(diag(confusionMatrix[,-p])/colSums(confusionMatrix[,-p]))  }
 	idx = which(acc == 0)
 	if (length(idx) > 0) { acc = acc[-idx]	}
 	nbAcc = length(acc)
@@ -2341,13 +2337,16 @@ dates2numeric <- function(X, whichCol = NULL, inverseDate = FALSE)
 	
 }	
 
-predictionsVsResponses <- function(predictions, responses)
+predictionvsResponses <- function(predictions, responses, plotting = TRUE)
 {
-	plot(predictions, responses,  xlab = "Predictions", ylab = "Responses")
 	linMod = lm(responses ~ predictions)
-	abline(a = linMod$coef[[1]] , b = linMod$coef[[2]], col="green",lwd = 2)
-	grid()
 	print(summary(linMod))
+	if (plotting)
+	{
+		plot(predictions, responses,  xlab = "Predictions", ylab = "Responses")
+		abline(a = linMod$coef[[1]] , b = linMod$coef[[2]], col="green",lwd = 2)
+		grid()
+	}	
 }
 
 rm.tempdir <- function()
@@ -2359,53 +2358,76 @@ rm.tempdir <- function()
 	setwd(path)
 }
 
-model.stats <- function(predictions, responses, regression = FALSE)
+model.stats <- function(predictions, responses, regression = FALSE, OOB = FALSE, plotting = TRUE)
 {
-    #require(pROC)
+    
+	if (class(predictions) == "randomUniformForest")
+	{
+		if (OOB & is.null(predictions$forest$OOB.predicts)) { stop("no OOB predictions in the model.") }
+		object = predictions
+		if (OOB) { 	predictions = predictions$forest$OOB.predicts }
+		else { predictions = predictions$predictionObject$majority.vote }
+		
+		if (!regression) 
+		{
+			predictions = as.factor(predictions)
+			levels(predictions) = object$classes
+		}
+	}
 	graphics.off()
-	cat("\nTest set")
+	#require(pROC)
+	if (OOB)  { cat("\nOOB evaluation") }
+	else { cat("\nTest set") }
+	
 	if (is.factor(predictions) | !regression)
 	{
 		uniqueResponses = sort(unique(responses))
 		if (!is.factor(responses)) { responses = as.factor(responses) }
-		confMat = confusion.matrix(as.numeric(predictions), as.numeric(responses))
-		rownames(confMat) = uniqueResponses
-		colnames(confMat)[-ncol(confMat)] = rownames(confMat)
+		confMat = confusion.matrix(predictions, responses)
 		cat("\nError rate: ")
-		cat(round(100*generalization.error(confMat), 2), "%\n", sep="")
+		testError = generalization.error(confMat)
+		cat(round(100*testError, 2), "%\n", sep="")
 		cat("\nConfusion matrix:\n")
 		print(round(confMat, 4))
 		
 		if (length(uniqueResponses) == 2)
 		{
-			cat("\nArea Under ROC Curve:", round(pROC::auc(as.numeric(responses), as.numeric(predictions)), 4))
+			AUC = pROC::auc(as.numeric(responses), as.numeric(predictions))
+			AUPR = myAUC(as.numeric(predictions), as.numeric(responses), falseDiscoveryRate = TRUE)$auc
+			cat("\nArea Under ROC Curve:", round(AUC, 4))
 			cat("\nArea Under Precision-Recall Curve:", 
-			round(myAUC(as.numeric(predictions), as.numeric(responses), falseDiscoveryRate = TRUE)$auc, 4))
+			round(AUPR, 4))
 			cat("\nF1-score:", round(fScore(confMat),4))
-			roc.curve(predictions, responses, uniqueResponses, printValues = FALSE)
-			dev.new( )
-			roc.curve(predictions, responses, uniqueResponses, falseDiscoveryRate = TRUE, printValues = FALSE)
+			if (plotting)
+			{
+				roc.curve(predictions, responses, uniqueResponses, printValues = FALSE)
+				dev.new( )
+				roc.curve(predictions, responses, uniqueResponses, falseDiscoveryRate = TRUE, printValues = FALSE)
+			}
 		}
 		cat("\nGeometric mean:", round(gMean(confMat),4),"\n")
 		if (nrow(confMat) > 2)
 		{ cat("Geometric mean of the precision:", round(gMean(confMat, precision = TRUE),4),"\n") }	
-	
+		
+		return(list(confusionMatrix = confMat, testError = testError, AUC = if (length(uniqueResponses) == 2) { AUC } else { "none" }, 
+		AUPR = if (length(uniqueResponses) == 2) { AUPR } else { "none" }))
 	}
 	else
 	{
 		n = length(responses)
 		MSE = L2Dist(predictions, responses)/n
 		cat("\nMean of squared residuals: ", round(MSE, 6), "\n", sep="") 
-		cat("Variance explained: ", round(100*(1 - MSE/var(responses)),2), "%\n\n", sep = "")		
+		cat("Variance explained: ", round(100*(1 - MSE/var(responses)),2), "%\n\n", sep = "")	
 		Residuals <- summary(predictions - responses)
 		names(Residuals) = c("Min", "1Q", "Median", "Mean", "3Q", "Max")
 		cat("Residuals:\n")
 		print(Residuals)
 		cat("Mean of absolute residuals: ", round(L1Dist(predictions, responses)/n, 6), "\n", sep="")
-		cat("\n")
-		predictionsVsResponses(predictions, responses) 		
+		cat("\nLinear modelling:")
+		predictionvsResponses(predictions, responses, plotting = plotting) 		
 	}
 }
+
 
 generic.cv <- function(X, Y, nTimes = 1, k = 10, seed = 2014, regression = TRUE, genericAlgo = NULL, specificPredictFunction = NULL, 
 metrics = c("none", "AUC", "precision", "F-score", "L1", "geometric mean", "geometric mean (precision)"))
@@ -2463,9 +2485,8 @@ metrics = c("none", "AUC", "precision", "F-score", "L1", "geometric mean", "geom
 			}
 			else
 			{	
-				testError[s] = sum(as.factor(predictions) != as.factor(Y2))/length(Y2)	
-				
-				confMat = confusion.matrix(as.factor(predictions), as.factor(Y2))
+				confMat = confusion.matrix(predictions, Y2)
+				testError[s] = generalization.error(confMat)
 				if (length(unique(Y2)) == 2)
 				{	
 					if (metrics[1] == "AUC") {  metricValues[s] = pROC::auc(as.numeric(Y2), as.numeric(predictions)) }				
@@ -2572,6 +2593,7 @@ timeStampCore <- function(stamp, n = NULL, begin = 0, end = NULL, windowLength =
 	}
 	return(Z)	
 }
+
 reSMOTE <- function(X, Y, majorityClass = 0, increaseMinorityClassTo = NULL, 
 samplingMethod = c("uniform univariate sampling", "uniform multivariate sampling", "with bootstrap"))
 {

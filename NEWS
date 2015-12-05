@@ -1,29 +1,63 @@
+Changes in 1.1.2
+
+1 - Option 'usesubtrees' has been introduced for large datasets support. It allows to grow trees with an arbitrary depth
+that are, in a second step, updated by extending all non pure nodes. The option is mainly designed to reduce memory
+footprint while possibly providing faster convergence and computing times. Note that many over usages can be found. 
+
+2 - Improvements on preprocessing time.
+
+3 - Improvements on categorical variables. Previously, the engine did not take into account that a categorical variable
+could be selected many times in each node ('the sampling with replacement features'), leading to a lower accuracy.
+This new release allows categorical variables to, possibly, get further improvements using large 'mtry' values. 
+For more informations about how categorical variables are handled, see the Details section of ?randomUniformForest.
+
+4 - Extended support of large files for the unsupervised mode. New functions, 'update.unsupervised( )' and 'combine.unsupervised( )', added. 
+The first one allows the unsupervised learning engine to be updated with new data. The second one (while experimental) allows to combine many unsupervised objects.
+Both lead to incremental unsupervised learning while the second one will be able to handle (at least partially) 
+shifting distributions. Some bugs have also been corrected.
+
+5 - 'bagging' option updated to support the selection of an arbitrary number of variables when used in conjunction with 'mtry'. 
+More precisely if 'bagging' is enabled and 'mtry' being a value lower or equal to the dimension of data, then sample without replacement of 'mtry' variables will be done.
+
+6 - For imbalanced multi-classes classification, the algorithm was not reporting correctly the true labels. The bug is now fixed.
+
+7 - Improvements and new examples for the generic cross-validation function 'generic.cv()'.
+
+8 - Improvements on the robustness to datasets which could, formerly, be weakened by some optimizations.
+
+9 - Vignette has been updated to revise consistency between theoretical formulae and R code implementation.
+
+10 - New vignettes have been added.
+
 Changes in 1.1.1
 
 1 - 'subset' option added when using formula.
 
 2 - Limited support for large files in unsupervised learning. More precisely, for datasets with more than 2000 rows
-a subsample is learned in a full unsupervised mode and the remaining points are predicted in the MDS space, before applying clustering. Some options have also be removed, since they are not easy to assess. Next update will allow full support.
+a subsample is learned in a full unsupervised mode and the remaining points are predicted in the MDS space, before applying clustering. 
+Some options have also be removed, since they are not easy to assess. Next update will allow full support.
 
-3 - clusteringObservations( ) function is now matching objects coming from a formula.
+3 - 'clusteringObservations( )' function is now matching objects coming from a formula.
 
-4 - modifyClusters( ) function is now working for unsupervised objects that use hierarchical clustering.
+4 - 'modifyClusters( )' function is now working for unsupervised objects that use hierarchical clustering.
 
-5 - Using specific combinations of options lead to build some trees with no defined leaves. Such trees lead R to crash. Patch has been added to force all trees to have well defined leaves. Note that the algorithm deletes variables that are no longer useful during the growth of a tree (which was possibly a cause for the bug).
+5 - Using specific combinations of options lead to build some trees with no defined leaves. Such trees lead R to crash.
+Patch has been added to force all trees to have well defined leaves. 
+Note that the algorithm deletes variables that are no longer useful during the growth of a tree (which was possibly a cause for the bug).
 
 6 - Cut-points, information gain and 'Lp' distances return now values rounded to have 4 decimals.
 
-7 - Missing values imputation, fillNA2.randomUniformForest( ) function, has been improved 
-to better match categorical variables.
+7 - Missing values imputation, 'fillNA2.randomUniformForest( )' function, has been improved to better match categorical variables.
 
 8 - Automatic detection of categorical variables has been improved.
 
-9 - Algorithm has been updated to convert null character, "", as a numeric value. 
-Hence it still is a missing value form the point of view of original data, but internally it is treated as an explicit  numeric value different from others numeric values in the variable. 
+9 - Algorithm has been updated to convert null character, "", into a numeric value. 
+Hence it still is a missing value from the point of view of original data, 
+but internally it is treated as an explicit numeric value different from others numeric ones in the variable. 
 
 10 - OOB evaluation now detects cases with very imbalanced classes that can not be predicted correctly.
 
-11 - Added a new (experimental) function, reSMOTE( ), to handle very imbalanced datasets.
+11 - A new (experimental) function, 'reSMOTE( )', has been added in order to handle very imbalanced datasets.
 
 12 - Main functionalities have been detailed, see the Details section of ?randomUniformForest, and more examples added.
 
@@ -37,7 +71,7 @@ Changes in 1.1.0
 Cut-points choice has been changed in order to separate classification, unsupervised mode and regression. 
 In Regression and unsupervised learning, cut-points are chosen using the whole support of each candidate variable, 
 as in initial release and prior to the 1.0.9 one. In Classification, the support is now reduced to two random points 
-chosen among a small number. This lead to more diversity in trees. 
+chosen among a small number. This leads to more diversity in trees. 
 
 2 - Categorical variables were not correctly matched when one was using 'categoricalvariablesidx' option.
 
@@ -45,8 +79,8 @@ chosen among a small number. This lead to more diversity in trees.
 
 Changes in 1.0.9 - 1.1.x :
 
-1 - Cut-points of each node are now chosen between two random points of each candidate variable. Previously, the whole support was chosen.
-This update on the optimization criterion leads to faster computation while not changing accuracy. 
+1 - Cut-points of each node are now chosen between two random points of each candidate variable. 
+Previously, the whole support was chosen. This update on the optimization criterion leads to faster computation while not changing accuracy. 
 
 2 - Introduction of unsupervised learning using the following chain commands paradigm:
 pre-processing (following Breiman's ideas) + randomUniformForest proximities matrix +  Multidimensional scaling + 
@@ -54,11 +88,11 @@ gap statistics (for estimating the number of clusters) + kmeans (for identifying
 Unsupervised learning introduces then many concepts that still need to be properly referenced. 
 Note that implementation for large datasets is currently not integrated.
 
-3 - model.stats() and generic.cv()  are now documented and bugs fixed.
+3 - model.stats() and generic.cv() are now documented and bugs fixed.
 model.stats() function displays many informations (confusion matrix, ROC curves, residuals,...) for any vector
 of predictions and responses. generic.cv() function proceeds to a k-fold cross-validation for any algorithm (with however some manual code).
 
-4 - Better matching of NA Values and comments to allow the right choice of imputation when predicting data with missing values.
+4 - Better matching of NA values and comments to allow the right choice of imputation when predicting data with missing values.
 
 5 - Improvements in speed and accuracy when using one (or both) of the options 'depth' or 'depthcontrol'.
 Especially for large files (> 100 000 rows), increase both speed and accuracy when using the rUniformForest.big() function.

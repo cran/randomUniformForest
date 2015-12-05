@@ -33,7 +33,8 @@
 	reduceClusters = FALSE, 
 	maxClusters = 5,
 	mapAndReduce = FALSE,
-	OOB = FALSE, 
+	OOB = FALSE,
+	subset = NULL, 
 	seed = 2014,
 	uthreads = "auto",
 	\dots)	
@@ -114,11 +115,14 @@
 	\item{OOB}{
 	    see \code{\link{clusteringObservations}}
 	}
-	\item{uthreads}{
-	    allows multi-core computation using, by default and for the current computer, all logical cores minus 1 for each task that can be done using many cores in parallel. 
+	\item{subset}{			
+		an index vector indicating which rows should be used.
 	}
 	\item{seed}{
 		seed value to allow convergence (but not reproducibility since random Uniform forests are stochastic but converge). See Details section for more information.
+	}
+	\item{uthreads}{
+	    allows multi-core computation using, by default and for the current computer, all logical cores minus 1 for each task that can be done using many cores in parallel. 
 	}
 	\item{\dots}{
 	  allow all options of \code{\link{randomUniformForest}} to be passed to the unsupervised.randomUniformForest() function, e.g. ntree, mtry,  nodesize, ...
@@ -128,7 +132,8 @@
 \details{
  The unsupervised mode of Random Uniform Forests is designed to provide dimension reduction, clustering and a full analysis of features and observations. The process uses a tree-layer engine built around a randomUniformForest object.
 
- It can be summarized using the following chain : RandomUniformForest object --> dissimilarity matrix --> multidimensional scaling --> clustering algorithm --> clusters --> that can be computed into an object of class importance.randomUniformForest. This latter is, optionally, used to analyse features, their links with clusters and the links between observations, features and clusters.
+ It can be summarized using the following chain :\cr
+ RandomUniformForest object --> dissimilarity matrix --> multidimensional scaling --> clustering algorithm --> clusters --> that can be computed into an object of class importance.randomUniformForest. This latter is, optionally, used to analyse features, their links with clusters and the links between observations, features and clusters.
  
  First step involves Breiman's ideas. Since Random Uniform Forests inherit of all properties of Random Forests, they are able to implement the key concepts provided by Breiman for the unsupervised case : \cr
  - create a synthetic data set by scrambling independently (for example uniformly) each column of the original dataset, \cr
@@ -139,15 +144,15 @@
  
  The second step used proximities matrix. If data are a 'n x p' matrix (or data frame) then proximities matrix will have a 'n x n' size, meaning that for each observation, one will search, for each tree, which other observation falls in the same terminal node, then increase the proximity of the two observations by one. At the end, all observations and all trees will have been processed, leading to a proximities matrix that will be normalized by the number of trees. Since it can be very large, it is possible (but currently disabled due to the compromise that is needed with large datasets between accuracy and computing time) to use a 'n x B' proximities matrix, where 'B' is the number of trees. A further step is to use a 'n x q' (biggest) proximities matrix, where 'q' can be as small as 2 in order to compress the data to their maximum.
  
- Once proximities matrix (or dissimilarity matrix using for example '1 - proximities') has been computed, the third step is to enter in the MDS process. MDS is needed for dimension reduction (if not already happened) and mainly to generate decorrelated components in which the points will reside. The two first components are usually enough to get good visualization. Unlike PCA, they are used only to achieve the best possible separation between points. Note that we allow proximities to be transformed to distances since we found that it produces sometimes better results.
+ Once proximities matrix (or dissimilarity matrix using for example '1 - proximities') has been computed, the third step is to enter in the MDS process. MDS is needed for dimension reduction (if not already happened) and mainly to generate decorrelated components in which the points will reside. The two first components are usually enough to get good visualization. Unlike PCA, they are used only to achieve the best possible separation between points. Note that we allow proximities to be transformed into distances since we found that it produces sometimes better results.
  
  The next step concludes the three-layer engine by calling a clustering algorithm, preferably K-means, to partition the MDS points since we use the features only in the early phase of the algorithm. Hence, we manipulate coordinates and points in a new space where MDS is the rule that matters. K-means algorithm is simply a way to provide a measurable way of the clusters which already exist, since clustering is almost done earlier. Note that the number of clusters is automatically adjusted by the gap statistic. If not enough, clusters structure can be instantaneously modified (see \code{\link{modifyClusters}}), letting the silhouette coefficient (Rousseeuw) tell the last word.
  
  The unsupervised learning is then partially achieved. An object with all tools is generated and can be returned in order to be assessed by the randomUniformForest algorithm that will provide a deeper analysis and visualization tools : \cr
  - what are the important features, e.g. the most discriminant ? \cr
  - what are their interactions, e.g. how features relate to the whole clustering scheme ? \cr
- - Partial dependencies \cr
- - Links between observations and features \cr
+ - Partial dependencies. \cr
+ - Links between observations and features. \cr
  - ... \cr
  
 The unsupervised model is turned into a supervised one using the \code{\link{as.supervised}} function, with all options one need to call for the supervised case, then doing the analysis by the \code{\link{importance.randomUniformForest}} function. This last step is essential if one wants to access to the full details. Moreover, data are now turned into a training sample for the algorithm. If new data become available, one may use the supervised case or the unsupervised one. The former has the great advantage to have a complexity in O(B*n*log(n)). Indeed, due to the lot of computation involved, the unsupervised case requires much more time than a simple call to K-means algorithm but also provides more details.\cr 
@@ -157,7 +162,7 @@ always provides :\cr
 - a resulted clustering scheme that processes MDS points, thus integrating all features in the same representation,\cr
 - an object that can be used to evaluate and analyse most important features, their interactions and their links with observations, according to the clustering scheme.
 
-When going toward large dataset, the unsupervised mode becomes hybrid with a fully unsupervised mode for a subsample of data and a supervised mode that learns MDS points and predict them for the remaining rows of the sample. This allows to strongly reduce computation time and to make the resulted object recyclable.\cr
+When going toward large datasets, the unsupervised mode becomes hybrid with a fully unsupervised mode for a subsample of data and a supervised mode that learns MDS points and predict them for the remaining rows of the sample. This allows to strongly reduce computation time and to make the resulted object recyclable.\cr
 - Hence, new data can be learned incrementally (combining or updating objects) and/or separately to the former object.
 - The main argument resides in the fact that the combination of Random Uniform Forests and MDS space allows data to be dynamically clustered as the time is going (i.e. new data are coming) or in the space, by changing, on the fly, the clustering representation.
 
@@ -211,21 +216,23 @@ Note that the whole engine is stochastic, with almost no possibility of reproduc
 ## load data
 # data(iris)
 
-## run unsupervised modelling, removing labels
-## Default options, letting the gap statistic find the number of clusters, 
-## except for 'baseModel' which slightly more efficient 
+## run unsupervised modelling, removing labels :
+## Default options, letting the 'gap statistic' find the number of clusters, 
+## except for 'baseModel' which is slightly more efficient 
 ## with the "proximityThenDistance" argument
+
 # iris.rufUnsupervised = unsupervised.randomUniformForest(iris[,-5], 
 # baseModel = "proximityThenDistance", seed = 2014, threads = 1)
 
 ## view a summary
 # iris.rufUnsupervised
 
-## one may assess the gap statistic by calling the modifyClusters() function,  
+## one may assess the gap statistic by calling the 'modifyClusters( )' function,  
 ## increasing or decreasing the number of clusters and looking the variations 
 ## of the silhouette coefficient.
 ## For example, if 4 clusters are found (since we know there are 3) :
-#  iris.rufUnsupervised2 = modifyClusters(iris.rufUnsupervised, decreaseBy = 1)
+
+# iris.rufUnsupervised2 = modifyClusters(iris.rufUnsupervised, decreaseBy = 1)
 
 ## plot clusters 
 # plot(iris.rufUnsupervised)
@@ -251,7 +258,7 @@ Note that the whole engine is stochastic, with almost no possibility of reproduc
 
 # wholesaleCustomers.rufUnsupervised
 
-## visualization : only clusters in the first step
+## visualization : at first, only clusters 
 # plot(wholesaleCustomers.rufUnsupervised)
 
 ## but, we may need more :
@@ -264,14 +271,15 @@ Note that the whole engine is stochastic, with almost no possibility of reproduc
 ## Is the learning efficient (using OOB evaluation) ?
 # wholesaleCustomers.rufSupervised
 
-## get to variable importance, leading to a full analysis and visualization
-## while limiting interactions of variables to 3 orders.
+## get variable importance, leading to a full analysis and visualization
+## while limiting interactions of variables to 3 orders
+
 # wholesaleCustomers.importance = importance(wholesaleCustomers.rufSupervised, 
 # Xtest = wholesaleCustomers, maxInteractions = 3)
 
 ## a - visualize : features, interactions, partial dependencies, features in clusters
 ## NOTE : tile window in the R menu to see all plots. Loop over the prompt to see
-## all partial dependencies
+## all matched partial dependencies
 
 # plot(wholesaleCustomers.importance, Xtest = wholesaleCustomers)
 
