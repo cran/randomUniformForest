@@ -13,8 +13,14 @@ postProcessingVotes(object,
 	granularity = 1,
 	predObject = NULL,
 	swapPredictions = FALSE,
-	X = NULL, 
-	imbalanced = FALSE)
+	X = NULL,
+	Xtest = NULL,
+	imbalanced = FALSE,
+	OOB = FALSE,
+	method = c("cutoff", "bias", "residuals"),
+	keep2ndModel = FALSE, 
+	largeData = FALSE,
+	\dots)
 }
 
 \arguments{
@@ -31,18 +37,39 @@ postProcessingVotes(object,
  		degree of precision needed for each old estimate value. Usually one is enough.
 }
 	\item{predObject}{
- 		if current model is built with full sample, then using an old model 'predObject' (a randomUniformForest object) that have OOB data can
-help to reduce error. Must be used with 'swapPredictions = TRUE'
+ 		if current model is built with full sample, then using an old model 'predObject' (a randomUniformForest object) that have OOB data can help to reduce error. Must be used with 'swapPredictions = TRUE'
 }
 	\item{swapPredictions }{
  		set it to TRUE if two models, current one without OOB data and old one with OOB data, have to be used for trying to reduce prediction error.
 }
 	\item{X}{
-     not currently used.
+		not currently used.
 }
+	\item{Xtest}{
+		test data in the case of regression, for a more friendly output of the model.
+	}
 	\item{imbalanced}{
-     not currently used.
+		if TRUE, may improve metrics in the case of imbalanced datasets.
 }
+\item{OOB}{
+	if FALSE, does not use OOB informations.
+}
+	\item{method}{
+    for classification, if expected bias is enough high, one may use it as a method to improve AUC. Otherwise, use the default one, 'cutoff'. Both tend to get the same results, despite a few tests for now, but 'bias' method seems more robust. 'residuals' is used in regression only as a powerful but computationally intensive method and replaces the default internal one.
+}
+\item{keep2ndModel}{
+	if TRUE, and for regression, keep the model based on residuals for further modelling and predictions.
+}
+\item{largeData}{
+	if TRUE, and for regression, use \code{\link{rUniformForest.big}} to compute model for the residuals.
+}
+\item{\dots}{
+	arguments to use for the computation of the model from the residuals.
+}
+}
+
+\references{
+	Xu, Ruo, Improvements to random forest methodology (2013). Graduate Theses and Dissertations. Paper 13052.
 }
 
 \value{
@@ -91,7 +118,7 @@ newEstimate <- postProcessingVotes(rUF.model)
 sum((newEstimate - Ytest)^2)/length(Ytest)
 
 ## regression do not use all data but sub-samples.
-## compare, when using full sample. But then, we do not have OOB data
+## Comparing, when using full sample (but then, we do not have OOB data)
 
 # rUF.model.fullsample <- randomUniformForest(Xtrain, Ytrain, xtest = Xtest, ytest = Ytest,
 # subsamplerate = 1, bagging = TRUE, logX = TRUE, ntree = 60, threads = 2)

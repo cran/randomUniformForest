@@ -1,7 +1,7 @@
 #include <Rcpp.h>
 using namespace Rcpp;
 
-double L2DistCPP(double x, NumericVector ys) 
+double L2DistCPP(double x, NumericVector ys)
 {
     int n = ys.size();
     double out = 0;
@@ -11,7 +11,7 @@ double L2DistCPP(double x, NumericVector ys)
     return out;
 }
 
-double L1DistCPP(double x, NumericVector ys) 
+double L1DistCPP(double x, NumericVector ys)
 {
     int n = ys.size();
     double out = 0;
@@ -21,34 +21,40 @@ double L1DistCPP(double x, NumericVector ys)
     return out;
 }
 
-double crossEntropyCPP(NumericVector pX) 
+double LInfCPP(double x, NumericVector ys)
+{
+    return (fabs(max(ys) - x) + fabs(x - min(ys)));
+}
+
+double crossEntropyCPP(NumericVector pX)
 {
     int nX  = pX.size();
 	double totalX = 0;
-    for(int i = 0; i < nX; ++i) 
+    for(int i = 0; i < nX; ++i)
 	{
-      if (pX[i] != 0) { totalX +=  pX[i]*log(pX[i]); }	  
+      if (pX[i] != 0) { totalX +=  pX[i]*log(pX[i]); }
     }
 	return -(totalX);
 }
 
-double giniCPP(NumericVector pX) 
+double giniCPP(NumericVector pX)
 {
     int nX  = pX.size();
 	double totalX = 0;
-    for(int i = 0; i < nX; ++i) 
+    for(int i = 0; i < nX; ++i)
 	{  totalX +=  pX[i]*(1 - pX[i]);  }
 	return totalX;
 }
+
 
 NumericMatrix XMinMaxCPP(NumericMatrix X)
 {
 	int ncolX = X.ncol();
 	NumericMatrix Y(2, ncolX);
-		
-	for(int j = 0; j < ncolX; ++j) 	
-	{ Y(0,j) =  min(X(_,j)); Y(1,j)= max(X(_,j));	}
-	
+
+	for(int j = 0; j < ncolX; ++j)
+	{ Y(0,j) = min(X(_,j)); Y(1,j) = max(X(_,j));	}
+
 	return Y;
 }
 
@@ -56,63 +62,63 @@ NumericVector checkUniqueObs(NumericMatrix X)
 {
 	int ncolX = X.ncol();
 	NumericVector uniqueObs(ncolX);
-		
-	for(int j = 0; j < ncolX; ++j) 	
-	{ 
+
+	for(int j = 0; j < ncolX; ++j)
+	{
 		uniqueObs[j] = 2;
 		if (min(X(_,j)) == max(X(_,j)))
 		{ uniqueObs[j] = 1; }
 	}
-	
+
 	return uniqueObs;
 }
 
 NumericVector classifyCPP( NumericMatrix treeObject, NumericVector X)
 {
-	int k = 0; 
-	    	
+	int k = 0;
+
 	while (treeObject(k,4) >  0)
 	{
-		if ( X[treeObject(k,2)-1] >  treeObject(k,3) ) 
+		if ( X[treeObject(k,2)-1] >  treeObject(k,3) )
 		{	k = treeObject(k,1)-1; }
-		else		
+		else
 		{  k = treeObject(k,0)-1; }
 	}
-			
+
 	NumericVector ZZ(3);
 	ZZ[0] = treeObject(k,5);
     ZZ[1] =	treeObject(k,6);
 	ZZ[2] = k + 1;
-	
+
 	return ZZ;
 }
 
 NumericMatrix classifyMatrixCPP( NumericMatrix treeObject, NumericMatrix X)
 {
-	int k = 0; 
+	int k = 0;
 	int nrowX = X.nrow();
-	
+
 	NumericMatrix ZZ(nrowX,3);
 	NumericVector Xtmp;
-	    	
-	for(int i = 0; i < nrowX; ++i) 	
+
+	for(int i = 0; i < nrowX; ++i)
 	{
 		Xtmp = X(i,_);
 		while (treeObject(k,4) >  0)
 		{
-			if ( Xtmp[treeObject(k,2)-1] >  treeObject(k,3) ) 
+			if ( Xtmp[treeObject(k,2)-1] >  treeObject(k,3) )
 			{	k = treeObject(k,1)-1; }
-			else		
+			else
 			{  k = treeObject(k,0)-1; }
 		}
-		
+
 		ZZ(i,0) = treeObject(k,5);
 		ZZ(i,1) = treeObject(k,6);
 		ZZ(i,2) = k + 1;
-		
+
 		k = 0;
 	}
-		
+
 	return ZZ;
 }
 
@@ -120,10 +126,10 @@ NumericVector runifMatrixCPP(NumericMatrix X)
 {
 	int ncolX = X.ncol();
 	NumericVector res(ncolX);
-	RNGScope scope; 
-	
+	RNGScope scope;
+
 	for(int j = 0; j < ncolX; ++j) 	{	res[j] = runif(10,  min(X(_,j)),  max(X(_,j)))[1];	}
-	
+
 	return res;
 }
 
@@ -132,32 +138,58 @@ NumericVector L2InformationGainCPP(NumericVector Y, NumericMatrix X, NumericVect
 	int ncolX = X.ncol();
 	int nrowX = X.nrow();
 	NumericVector err(ncolX);
-	double mYLow;		
+	double mYLow;
 	double mYHigh;
 	int a;
 	int b;
-	
+
 	for (int j = 0; j < ncolX; ++j)
 	{
 		a = 0; b = 0;
-		NumericVector YLow(nrowX); 
+		NumericVector YLow(nrowX);
 		NumericVector YHigh(nrowX);
 	    YLow[0] = 0; YHigh[0] = 0;
 		mYLow = 0; mYHigh = 0;
 		for (int i = 0; i < nrowX; ++i)
 		{
 			if (X(i,j) <= splitPoint[j])
-			{	YLow[a] = Y[i];  mYLow += Y[i];	a = a + 1;}
+			{	YLow[a] = Y[i];  mYLow += Y[i];	a += 1;	}
 			else
-			{	YHigh[b] = Y[i]; mYHigh += Y[i];  b = b + 1; }
+			{	YHigh[b] = Y[i]; mYHigh += Y[i]; b += 1; }
 		}
-	
+
 		if (b == 0)
 		{	err[j]= L2DistCPP(mYLow/a, YLow[Range(0,a-1)]);	}
 		else
 		{ 	err[j]= L2DistCPP(mYLow/a, YLow[Range(0,a-1)]) + L2DistCPP(mYHigh/b, YHigh[Range(0,b-1)]);	}
 	}
-		
+
+	return err;
+}
+
+NumericVector L2AsymetricInformationGainCPP(NumericVector Y, NumericMatrix X, NumericVector splitPoint)
+{
+	int ncolX = X.ncol();
+	int nrowX = X.nrow();
+	NumericVector err(ncolX);
+	double mYEqual;
+	int a;
+
+	for (int j = 0; j < ncolX; ++j)
+	{
+		a = 0;
+		NumericVector YEqual(nrowX);
+		YEqual[0] = 0;
+		mYEqual = 0;
+		for (int i = 0; i < nrowX; ++i)
+		{
+			if (X(i,j) == splitPoint[j])
+			{	YEqual[a] = Y[i];  mYEqual += Y[i];	a += 1;}
+		}
+
+		err[j]= L2DistCPP(mYEqual/a, YEqual[Range(0,a-1)]);
+	}
+
 	return err;
 }
 
@@ -166,47 +198,82 @@ NumericVector L1InformationGainCPP(NumericVector Y, NumericMatrix X, NumericVect
 	int ncolX = X.ncol();
 	int nrowX = X.nrow();
 	NumericVector err(ncolX);
-	double mYLow;		
+	double mYLow;
 	double mYHigh;
 	int a;
 	int b;
-	
+
 	for (int j = 0; j < ncolX; ++j)
 	{
 		a = 0; b = 0;
-		NumericVector YLow(nrowX); 
+		NumericVector YLow(nrowX);
 		NumericVector YHigh(nrowX);
 	    YLow[0] = 0; YHigh[0] = 0;
 		mYLow = 0; mYHigh = 0;
 		for (int i = 0; i < nrowX; ++i)
 		{
 			if (X(i,j) <= splitPoint[j])
-			{	YLow[a] = Y[i];  mYLow += Y[i];	a = a + 1;}
+			{	YLow[a] = Y[i];  mYLow += Y[i];	a += 1;}
 			else
-			{	YHigh[b] = Y[i]; mYHigh += Y[i];  b = b + 1; }
+			{	YHigh[b] = Y[i]; mYHigh += Y[i];  b += 1; }
 		}
-	
+
 		if (b == 0)
 		{	err[j]= L1DistCPP(mYLow/a, YLow[Range(0,a-1)]);	}
 		else
 		{ 	err[j]= L1DistCPP(mYLow/a, YLow[Range(0,a-1)]) + L1DistCPP(mYHigh/b, YHigh[Range(0,b-1)]);	}
 	}
-		
+
 	return err;
 }
 
-double conditionalCrossEntropyCPP(NumericVector pkLow, NumericVector pkHigh,double pLow, double pHigh) 
+NumericVector L1AsymetricInformationGainCPP(NumericVector Y, NumericMatrix X, NumericVector splitPoint)
+{
+	int ncolX = X.ncol();
+	int nrowX = X.nrow();
+	NumericVector err(ncolX);
+	double mYEqual;
+	int a;
+
+	for (int j = 0; j < ncolX; ++j)
+	{
+		a = 0;
+		NumericVector YEqual(nrowX);
+		YEqual[0] = 0;
+		mYEqual = 0;
+		for (int i = 0; i < nrowX; ++i)
+		{
+			if (X(i,j) == splitPoint[j])
+			{	YEqual[a] = Y[i];  mYEqual += Y[i];	a += 1;}
+		}
+
+		err[j]= L1DistCPP(mYEqual/a, YEqual[Range(0,a-1)]);
+	}
+
+	return err;
+}
+
+double conditionalCrossEntropyCPP(NumericVector pkLow, NumericVector pkHigh,double pLow, double pHigh)
 {
 	return (crossEntropyCPP(pkLow)*pLow + crossEntropyCPP(pkHigh)*pHigh);
 }
 
-double conditionalGiniCPP(NumericVector pkLow, NumericVector pkHigh, double pLow, double pHigh) 
+double asymetricCrossEntropyCPP(NumericVector pkEqual, double pEqual)
+{
+	return (crossEntropyCPP(pkEqual)*pEqual);
+}
+
+double conditionalGiniCPP(NumericVector pkLow, NumericVector pkHigh, double pLow, double pHigh)
 {
 	return (giniCPP(pkLow)*pLow + giniCPP(pkHigh)*pHigh);
 }
 
-NumericVector entropyInformationGainCPP(NumericVector Y, NumericMatrix X, NumericVector splitPoint, NumericVector classes, int nClasses, 
-	NumericVector eClasswt, int entropy)
+double asymetricGiniCPP(NumericVector pkEqual, double pEqual)
+{
+	return (giniCPP(pkEqual)*pEqual);
+}
+
+NumericVector entropyInformationGainCPP(NumericVector Y, NumericMatrix X, NumericVector splitPoint, NumericVector classes, int nClasses, NumericVector eClasswt, int entropy)
 {
 	double ncolX = X.ncol();
 	double nrowX = X.nrow();
@@ -215,19 +282,19 @@ NumericVector entropyInformationGainCPP(NumericVector Y, NumericMatrix X, Numeri
 	NumericVector pHigh(nClasses);
 	double nLow;
 	double nHigh;
-	
+
 	for (int j = 0; j < ncolX; ++j)
 	{
 	    nLow = 0;
 		nHigh = 0;
-		
+
 		for (int k = 0; k < nClasses; ++k)
 		{   pLow[k] = 0; pHigh[k] = 0; }
-		
+
 		for (int i = 0; i < nrowX; ++i)
 		{
 			if (X(i,j) <= splitPoint[j])
-			{	
+			{
 				nLow = nLow + 1;
 				for (int k = 0; k < nClasses; ++k)
 				{
@@ -236,7 +303,7 @@ NumericVector entropyInformationGainCPP(NumericVector Y, NumericMatrix X, Numeri
 				}
 			}
 			else
-			{	
+			{
 				nHigh = nHigh + 1;
 				for (int k = 0; k < nClasses; ++k)
 				{
@@ -245,7 +312,7 @@ NumericVector entropyInformationGainCPP(NumericVector Y, NumericMatrix X, Numeri
 				}
 			}
 		}
-			
+
 		if (eClasswt[0] > 0)
 		{
 			for (int ec = 0; ec < nClasses; ++ec)
@@ -254,41 +321,110 @@ NumericVector entropyInformationGainCPP(NumericVector Y, NumericMatrix X, Numeri
 				pHigh[ec] = pHigh[ec] * eClasswt[ec];
 			}
 		}
-	
-		if (nHigh == 0)
-		{	nHigh = nHigh  + 1; }
-		
+
+		if (nHigh == 0) { nHigh = nHigh  + 1; }
+
 		for (int k = 0; k < nClasses; ++k)
 		{
-			pLow[k] = pLow[k]/nLow; 
-			pHigh[k] = pHigh[k]/nHigh; 
-		}	
-		
+			pLow[k] = pLow[k]/nLow;
+			pHigh[k] = pHigh[k]/nHigh;
+		}
+
 		double pPrior1 = nLow/nrowX;
 		double pPrior2 = 1 - pPrior1;
-					
-		if (entropy == 1)
-		{	err[j] = conditionalCrossEntropyCPP(pLow, pHigh,  pPrior1, pPrior2); }
-		else
-		{ err[j] = conditionalGiniCPP(pLow, pHigh,  pPrior1, pPrior2); }
+
+		if (entropy == 1) {	err[j] = conditionalCrossEntropyCPP(pLow, pHigh, pPrior1, pPrior2); }
+		else { err[j] = conditionalGiniCPP(pLow, pHigh, pPrior1, pPrior2); }
 	}
-	
+
 	return err;
 }
 
-NumericVector sortCPP(NumericVector x) 
+NumericVector asymetricInformationGainCPP(NumericVector Y, NumericMatrix X, NumericVector splitPoint, NumericVector classes, int nClasses, NumericVector eClasswt, int entropy)
+{
+	double ncolX = X.ncol();
+	double nrowX = X.nrow();
+	NumericVector err(ncolX);
+	NumericVector pEqual(nClasses);
+	double nEqual;
+	int nLow;
+	int	nHigh;
+
+	for (int j = 0; j < ncolX; ++j)
+	{
+	    nLow = 0;
+		nHigh = 0;
+
+		for (int k = 0; k < nClasses; ++k)
+		{   pEqual[k] = 0;  }
+
+		for (int i = 0; i < nrowX; ++i)
+		{
+			if (X(i,j) == splitPoint[j])
+			{
+				nEqual = nEqual + 1;
+				for (int k = 0; k < nClasses; ++k)
+				{
+					if (Y[i] == classes[k])
+					{  	pEqual[k] = pEqual[k] + 1; }
+				}
+			}
+		}
+
+		if (eClasswt[0] > 0)
+		{
+			for (int ec = 0; ec < nClasses; ++ec)
+			{
+				pEqual[ec] = pEqual[ec] * eClasswt[ec];
+			}
+		}
+
+		for (int k = 0; k < nClasses; ++k)
+		{
+			pEqual[k] = pEqual[k]/nEqual;
+		}
+
+		double pPrior = nEqual/nEqual;
+
+		if (entropy == 1)
+		{	err[j] = asymetricCrossEntropyCPP(pEqual, pPrior); }
+		else
+		{ err[j] = asymetricGiniCPP(pEqual, pPrior); }
+	}
+
+	return err;
+}
+
+
+NumericVector sortCPP(NumericVector x)
 {
    NumericVector y = clone(x);
    std::sort(y.begin(), y.end());
    return y;
 }
 
+// NumericMatrix replaceIf(NumericMatrix X, NumericMatrix U)
+// {
+	// double ncolX = X.ncol();
+
+	// int nLow;
+	// int	nHigh;
+
+	// for (int j = 0; j < ncolX; ++j)
+	// {
+		// if (X(_,j)
+
+	// }
+// }
+
+
 RCPP_MODULE(rUniformForestCppClass)
 {
-	using namespace Rcpp; 
-	
+	using namespace Rcpp;
+
 	function("L2DistCPP", &L2DistCPP);
 	function("L1DistCPP", &L1DistCPP);
+	function("LInfCPP", &LInfCPP);
 	function("crossEntropyCPP", &crossEntropyCPP);
 	function("giniCPP", &giniCPP);
 	function("XMinMaxCPP", &XMinMaxCPP);
@@ -297,9 +433,14 @@ RCPP_MODULE(rUniformForestCppClass)
 	function("classifyMatrixCPP", &classifyMatrixCPP);
 	function("runifMatrixCPP", &runifMatrixCPP);
 	function("L2InformationGainCPP", &L2InformationGainCPP);
+	function("L2AsymetricInformationGainCPP", &L2AsymetricInformationGainCPP);
 	function("L1InformationGainCPP", &L1InformationGainCPP);
+	function("L1AsymetricInformationGainCPP", &L1AsymetricInformationGainCPP);
 	function("conditionalCrossEntropyCPP", &conditionalCrossEntropyCPP);
+	function("asymetricCrossEntropyCPP", &asymetricCrossEntropyCPP);
 	function("conditionalGiniCPP", &conditionalGiniCPP);
+	function("asymetricGiniCPP", &asymetricGiniCPP);
 	function("entropyInformationGainCPP", &entropyInformationGainCPP);
+	function("asymetricInformationGainCPP", &asymetricInformationGainCPP);
 	function("sortCPP", &sortCPP);
 }

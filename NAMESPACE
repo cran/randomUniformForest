@@ -1,9 +1,13 @@
-useDynLib(randomUniformForest)
+useDynLib(randomUniformForest, .registration = TRUE)
 exportPattern("^[[:alpha:]]+")
-import(methods, parallel, doParallel, foreach, ggplot2, pROC, cluster, MASS)
-importFrom(gtools, binsearch)
-importFrom(Rcpp, loadModule)
-importFrom(Rcpp, evalCpp)
+import(methods, parallel, doParallel, foreach, ggplot2, cluster, MASS)
+importFrom("grDevices", "dev.new", "dev.off", "graphics.off", "heat.colors")
+importFrom("graphics", "abline", "barplot", "grid", "legend", "mosaicplot", "par", "persp", "points", "title")
+importFrom("stats", "aggregate", "cor", "dist", "kmeans", "lm", "median", "model.frame", "model.matrix", "model.response", "na.omit", "pbinom", "predict", "qnorm", "quantile", "rnorm", "runif", "sd", "var", "cov", "density")
+importFrom("utils", "head", "memory.limit")
+importFrom("pROC", "auc")
+importFrom("Rcpp", "loadModule", "evalCpp")
+
 export(randomUniformForest.default, importance.randomUniformForest, rUniformForest.big, rUniformForest.combine, rUniformForest.grow, partialDependenceBetweenPredictors, partialDependenceOverResponses, partialImportance, postProcessingVotes, rm.trees, roc.curve, fillNA2.randomUniformForest, bCI, init_values, getTree.randomUniformForest, plotTree, as.supervised, clusteringObservations, mergeClusters, modifyClusters, splitClusters, unsupervised.randomUniformForest, generic.cv, model.stats, update.unsupervised, combineUnsupervised, clusterAnalysis, rm.coordinates, rufImpute)
 
 S3method(print, randomUniformForest)

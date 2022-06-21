@@ -11,7 +11,7 @@
    new data are expected to have the same distribution than previous ones.
 }
 \usage{
-\method{update}{unsupervised}(object, X = NULL, 
+\method{update}{unsupervised}(object, X, 
 	oldData = NULL, 
 	mapAndReduce = FALSE, 
 	updateModel = FALSE, 

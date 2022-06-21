@@ -6,4 +6,4 @@ bibentry(bibtype = "Manual",
          author = c(person("Saip", "Ciss")),
          year = year,
          note = note,
-         url = "http://CRAN.R-project.org/package=randomUniformForest")
+         url = "https://CRAN.R-project.org/package=randomUniformForest")

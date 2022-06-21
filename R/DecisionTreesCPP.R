@@ -204,7 +204,15 @@ moreNodes = FALSE)
 			p = ncol(X)
 			OOBIdx = 0
 		}
-		if (is.character(treeDepth)) { treeDepth = sample(3:round(log(nX)/log(2),0), 1) }
+		if (is.character(treeDepth)) 
+		{	
+			if (sample(0:2,1) == 1) { treeDepth = Inf }
+			else
+			{  
+				if (sample(0:1,1) == 1) { treeDepth = sample(5:round(log(nX)/log(2),0), 1) }
+				else { treeDepth = 2 }
+			}			
+		}
 		if (nodeMinSize >= n) { stop("Minimal number of observations (nodesize) cannot be greater than sample size.\n") }
 		m = treeFeatures
 		if (treeBagging) { m = min(p, treeFeatures); treeFeatures = m }		
@@ -393,7 +401,7 @@ moreNodes = FALSE)
 						{	candidateVariables = sample(featuresIdx, 16*p, replace = TRUE) }
 						else
 						{ 	
-							if(n <= 32) { candidateVariables = sample(featuresIdx, 4*p, replace = TRUE) } 
+							if (n <= 32) { candidateVariables = sample(featuresIdx, 4*p, replace = TRUE) } 
 							else { candidateVariables = sample(featuresIdx, m, replace = TRUE) }
 						}
 					}

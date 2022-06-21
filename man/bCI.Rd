@@ -5,7 +5,7 @@
 }
 
 \description{
-  Bootstrapped prediction (and confidence) interval(s) for problems where response vector has a very frequent value (e.g. 0) or for drawing tighter prediction interval (for each response) than those provided by random Uniform Forests.
+Bootstrapped prediction (and confidence) interval(s) for problems where response vector has a very frequent value (e.g. 0) or for drawing tighter prediction interval (for each response) than those provided by random Uniform Forests.
 }
 
 \usage{
@@ -13,28 +13,28 @@ bCI(X, f = mean, R = 100, conf = 0.95, largeValues = TRUE, skew = TRUE, threads 
 }
 
 \arguments{
-  \item{X}{
-    a matrix of base model outputs for observations of the test sample. Each row contains outputs of all base models for the current response.
+\item{X}{
+a matrix of base model outputs for observations of the test sample. Each row contains outputs of all base models for the current response.
 }
-  \item{f}{
-    a function to approximate. Can be arbitrary but must take outputs of base models (vector) and return a scalar. By default, 'f' is the mean() function, since a random (Uniform) Forest output is, for each observation, an average of all trees outputs. bCi() will, then, compute 'f(X)' for each response, where 'f' is the function over model parameter and 'X' are the outputs of base models.
+\item{f}{
+a function to approximate. Can be arbitrary but must take outputs of base models (vector) and return a scalar. By default, 'f' is the mean() function, since a random (Uniform) Forest output is, for each observation, an average of all trees outputs. bCi() will, then, compute 'f(X)' for each response, where 'f' is the function over model parameter and 'X' are the outputs of base models.
 }
-  \item{R}{
- 	number of replications required to compute prediction intervals. 
+\item{R}{
+number of replications required to compute prediction intervals.
 }
-  \item{conf}{
-    value of 'conf' (greater than 0 and lesser than 1) is the desired level of confidence for all prediction intervals.
+\item{conf}{
+value of 'conf' (greater than 0 and lesser than 1) is the desired level of confidence for all prediction intervals.
 }
-  \item{largeValues }{
-    if TRUE, assume that quantile estimates (bounds of each prediction interval) need to be enough large, so that bounds will be realistic.
-	If FALSE, tightest bounds will be computed, leading to small confidence interval for a parameter, e.g. mean of the response values,
-	but not suitable prediction intervals. If one needs only confidence interval, set option to FALSE.
+\item{largeValues }{
+if TRUE, assume that quantile estimates (bounds of each prediction interval) need to be enough large, so that bounds will be realistic.
+If FALSE, tightest bounds will be computed, leading to small confidence interval for a parameter, e.g. mean of the response values,
+but not suitable prediction intervals. If one needs only confidence interval, set option to FALSE.
 }
-  \item{skew}{
-    if TRUE (and largeValues = TRUE), assume that bounds admit fat tails in one or another direction (but not both, since then bounds will be large). Useful for exponential type distributions where data distribution is not really continuous, typically when one value is, by far, the most frequent and is (or close to) the smallest one. Note that if computed lower bound goes under the minimum of the distribution, one has to adjust it, since bCI function always assumes that only distribution of response is known, not its value (or estimate) for any single case. If FALSE, bCI() function will consider, for each response, a Gaussian neighbourhood depending on unique outputs of base models (number and variance). So, bounds computed are expected to be tighter. Note that prediction intervals must, in the same time, be globally consistent with the confidence level of confidence interval. One can assess this, by using outsideConfIntLevels() function (see examples) in order to choose right instance of the option. For example, outsideConfIntLevels() function on the OOB classifier is one way to do it.
+\item{skew}{
+if TRUE (and largeValues = TRUE), assume that bounds admit fat tails in one or another direction (but not both, since then bounds will be large). Useful for exponential type distributions where data distribution is not really continuous, typically when one value is, by far, the most frequent and is (or close to) the smallest one. Note that if computed lower bound goes under the minimum of the distribution, one has to adjust it, since bCI function always assumes that only distribution of response is known, not its value (or estimate) for any single case. If FALSE, bCI() function will consider, for each response, a Gaussian neighbourhood depending on unique outputs of base models (number and variance). So, bounds computed are expected to be tighter. Note that prediction intervals must, in the same time, be globally consistent with the confidence level of confidence interval. One can assess this, by using outsideConfIntLevels() function (see examples) in order to choose right instance of the option. For example, outsideConfIntLevels() function on the OOB classifier is one way to do it.
 }
-  \item{threads}{
-    compute model in parallel for computers with many cores. Default value is "auto", letting model running on all logical cores minus 1. One can set 'threads' to any values >= 1, depending on the number of cores (include logical).
+\item{threads}{
+compute model in parallel for computers with many cores. Default value is "auto", letting model running on all logical cores minus 1. One can set 'threads' to any values >= 1, depending on the number of cores (include logical).
 }
 }
 
@@ -43,11 +43,11 @@ Main objective of the bCI() function is to provide more realistic prediction int
 }
 
 \value{
-  a matrix of estimates, lower and upper bounds.
+a matrix of estimates, lower and upper bounds.
 }
 
 \author{
-  Saip Ciss \email{saip.ciss@wanadoo.fr}
+Saip Ciss \email{saip.ciss@wanadoo.fr}
 }
 
 \examples{
@@ -74,7 +74,7 @@ Main objective of the bCI() function is to provide more realistic prediction int
 
 ## compute a model and predict
 ## NOTE : in regression, the model uses subsampling
-# rUF.model <- randomUniformForest(Xtrain, Ytrain, bagging = TRUE, logX = TRUE, 
+# rUF.model <- randomUniformForest(Xtrain, Ytrain, bagging = TRUE, logX = TRUE,
 # ntree = 50, threads = 1, OOB = FALSE)
 
 ######### PART ONE : get classical predictions intervals
@@ -86,8 +86,8 @@ Main objective of the bCI() function is to provide more realistic prediction int
 ## check mean squared error
 # sum((rUF.ClassicPredictionsInterval$Estimate - Ytest)^2)/length(Ytest)
 
-## PROBABILITY (estimate) OF BEING OUT OF THE BOUNDS OF PREDICTION INTERVALS 
-## using all test sample, meaning that we compute the probability that any response 
+## PROBABILITY (estimate) OF BEING OUT OF THE BOUNDS OF PREDICTION INTERVALS
+## using all test sample, meaning that we compute the probability that any response
 ## goes outside its predicted interval when assessing the test set
 
 # outsideConfIntLevels(rUF.ClassicPredictionsInterval, Ytest, conf = 0.99)
@@ -105,21 +105,21 @@ Main objective of the bCI() function is to provide more realistic prediction int
 ##  get 99% predictions interval by bCI:
 # bCI.predictionsInterval <- bCI(rUF.predictionsVotes, conf = 0.99, R = 100, threads = 1)
 
-## since we know that lower bound can not be lower than 0, we set it explicitly 
+## since we know that lower bound can not be lower than 0, we set it explicitly
 ## (it is already the case in standard prediction interval)
-# bCI.predictionsInterval[bCI.predictionsInterval[,2] < 0, 2] = 0 
- 
-##  PROBABILITY (estimate) OF BEING OUT OF THE BOUNDS OF PREDICTION INTERVALS 
+# bCI.predictionsInterval[bCI.predictionsInterval[,2] < 0, 2] = 0
+
+##  PROBABILITY (estimate) OF BEING OUT OF THE BOUNDS OF PREDICTION INTERVALS
 ## (bounds are expected to be, at most, slightly worst than in the standard case)
 # outsideConfIntLevels(bCI.predictionsInterval, Ytest, conf = 0.99)
 
-##  get average of prediction intervals 
+##  get average of prediction intervals
 ## (expected to be much tighter than the standard one)
 # mean(abs(bCI.predictionsInterval[,3] - bCI.predictionsInterval[,2]))
 
 ######### PART THREE : COMPARISON OF CONFIDENCE INTERVALS
 
-## CONFIDENCE INTERVAL FOR THE EXPECTATION OF Y: 
+## CONFIDENCE INTERVAL FOR THE EXPECTATION OF Y:
 ## mean of Y
 # mean(Ytest)
 
@@ -132,23 +132,23 @@ Main objective of the bCI() function is to provide more realistic prediction int
 ## using bCI(), get closer confidence interval for expectation of Y, at the expense
 ## of realistic prediction intervals:
 ## get 99% predictions interval by bCI, assuming very tight bounds
-# bCI.UnrealisticPredictionsInterval <- bCI(rUF.predictionsVotes, 
+# bCI.UnrealisticPredictionsInterval <- bCI(rUF.predictionsVotes,
 # conf = 0.99, R = 200, largeValues = FALSE, threads = 1)
-										
-##  assess it 
+
+##  assess it
 ## (we do not want predictions interval...)
 # outsideConfIntLevels(bCI.UnrealisticPredictionsInterval, Ytest, conf = 0.99)
 
-## get (bayesian?) mean and confidence interval for the expectation of Y 
+## get (bayesian?) mean and confidence interval for the expectation of Y
 ## (...but we want good confidence interval)
-# colMeans(bCI.UnrealisticPredictionsInterval) 
+# colMeans(bCI.UnrealisticPredictionsInterval)
 
 ## much closer than the standard one, with almost the same mean
 # colMeans(rUF.ClassicPredictionsInterval)
 
 ######## PART FOUR : A REAL CASE
 
-#### Regression : "Concrete Compressive Strength" data 
+#### Regression : "Concrete Compressive Strength" data
 ## (http://archive.ics.uci.edu/ml/datasets/Concrete+Compressive+Strength)
 
 # data(ConcreteCompressiveStrength)
@@ -165,7 +165,7 @@ Main objective of the bCI() function is to provide more realistic prediction int
 # Concrete.responses.train <- ConcreteCompressiveStrength.data[trainTestIdx == 1, p]
 
 ## model
-# Concrete.ruf <- randomUniformForest(Concrete.data.train, Concrete.responses.train, 
+# Concrete.ruf <- randomUniformForest(Concrete.data.train, Concrete.responses.train,
 # threads = 2)
 # Concrete.ruf
 
@@ -175,7 +175,7 @@ Main objective of the bCI() function is to provide more realistic prediction int
 
 ## assessing predictions intervals :
 
-## 1- with the OOB classifier, what can we expect from the bounds 
+## 1- with the OOB classifier, what can we expect from the bounds
 ## when going toward the test set :
 
 ## first, compute the prediction intervals of the OOB classifier
@@ -193,7 +193,7 @@ Main objective of the bCI() function is to provide more realistic prediction int
 # predictionIntervals = bCI(predict(Concrete.ruf, Concrete.data.test, type= "votes"))
 
 ## a- main interest: after getting the test responses we can now look, if the OOB classifier
-## was right, i.e. out-of-bounds probabilities for the test set with the forest classifier 
+## was right, i.e. out-of-bounds probabilities for the test set with the forest classifier
 ## should see their sum being over 5% and close to (the sum of) the OOB ones
 ##(but this latter would probably require more trees than the default value we let)
 # outsideConfIntLevels(predictionIntervals, Concrete.responses.test, conf = 0.95)

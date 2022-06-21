@@ -41,7 +41,7 @@
 	randomcombination = 0,
 	randomfeature = FALSE,
 	categoricalvariablesidx = NULL,
-	na.action = c("fastImpute", "accurateImpute", "omit"),
+	na.action = c("veryFastImpute", "fastImpute", "accurateImpute", "omit"),
 	logX = FALSE,
 	classcutoff = c(0,0),
 	subset = NULL,
@@ -49,7 +49,7 @@
 	threads = "auto",
 	parallelpackage = "doParallel",
 	\dots)	
-	\method{print}{randomUniformForest}(x, \dots)
+	\method{print}{randomUniformForest}(x, biasCorrection = FALSE, \dots)
 	\method{summary}{randomUniformForest}(object, maxVar = 30, border = NA, \dots)
 	\method{plot}{randomUniformForest}(x, threads = "auto", \dots)
 }
@@ -57,10 +57,13 @@
 %- maybe also 'usage' for other objects documented here.
 \arguments{
 	\item{maxVar}{
-	    maximum number of variables to plot and print when summarizing  a randomUniformForest object.
+	    maximum number of variables to plot and print when summarizing a randomUniformForest object.
 	}
 	\item{border}{
 	    positive integer value or NA. Change colour of the borders when plotting variable importance. By default, NA, which disables border.
+	}
+	\item{biasCorrection}{
+		if TRUE, bias correction that will be applied to model errors.
 	}
 	\item{x, object}{
 	    an object of class randomUniformForest.
@@ -87,7 +90,7 @@
 	     number of trees to grow. Default value is 100. Do not set it too small.
 	}
 	\item{mtry}{
-	     number of variables randomly sampled with replacement as candidates at each split. Default value is floor(4/3*ncol(X)) unless 'bagging' or 'randomfeature' options are specified. One can also set mtry = "random". For regression, increasing 'mtry' value usually leads to better accuracy. Note that mtry = 1 will lead to a \emph{purely uniformly random forest}. 'mtry' has also an effect when assessing variable importance.
+	     number of variables randomly sampled with replacement as candidates at each split. Default value is floor(4/3*ncol(X)) unless 'bagging' or 'randomfeature' options are specified. For regression, increasing 'mtry' value usually leads to better accuracy. Note that mtry = 1 will lead to a \emph{purely uniformly random forest}. 'mtry' has also an effect when assessing variable importance. Random 'mtry' is allowed setting mtry = "random". 
 	}
 	\item{nodesize}{
 	     minimal size of terminal nodes. Default value is 1 (for both classification and regression) and usually produce best results, as it reduces bias when trees are fully grown. Variance is increased, but that is exactly what Random Uniform Forests need. Random 'nodesize' is allowed, setting option to "random". For each tree 'nodesize' will take a random value between 1 and 50, using increments of 5.
@@ -112,8 +115,7 @@
 	     if replace is TRUE, then if OOB is TRUE, "Out-of-bag" evaluation is done, resulting in an estimate of generalization (and mean squared) error and bounds. OOB option has an overhead on computing time especially for a large number of trees and large datasets, but it is one of the most useful option.
 	}
 	\item{BreimanBounds}{
-	    if TRUE, computes all theoretical properties provided by Breiman (2001), since Random Uniform Forests inherit of Random Forests properties. For classification, it gives the two bounds of prediction error, average correlation between trees, strength and standard deviation of strength. In classification, Breiman's bound should act as an upper bound; if not then overfitting is likely to happen. 
-		A special case where the first Breiman's bound does not work is when classes are imbalanced. In such case, the second bound can be used since it overrides imbalanced classes and is the \emph{upper bound of prediction error}. It could be loose but, if there are enough trees and data, will be strongly reduced using options. For regression, model returns an estimate of the forest theoretical prediction error, its upper bound, mean prediction error of a tree, average correlation between trees residuals and expected squared bias. The estimate of theoretical prediction error of the forest (and the upper bound) is not a bound of test (mean squared) error. Note that for multi-class problems or large files, 'BreimanBounds' option requires a lot of computing time.
+	    if TRUE, computes all theoretical properties provided by Breiman (2001), since Random Uniform Forests inherit of Random Forests properties. For classification, it gives the two bounds of prediction error, average correlation between trees, strength and standard deviation of strength. For regression, model returns an estimate of the forest theoretical prediction error, its upper bound, mean prediction error of a tree, average correlation between trees residuals and expected squared bias. Note that for multi-class problems or large files, 'BreimanBounds' option requires a lot of computing time. For more details see 'Notes' below.
 	}
 	\item{subsamplerate}{
 	     value is the rate of sub-sampling (Bulhmann et Yu, 2002) for training sample. By default, 0.7 for regression (1, e.g. no sub-sampling, in classification). If 'replace' is TRUE, 'subsamplerate' can be set to values greater than 1. For regression, if only accuracy is needed, setting 'replace' to FALSE and 'subsamplerate' to 1, may improve results in some cases but OOB evaluation (and Breiman's bounds) will be lost.
@@ -158,7 +160,7 @@
 	     which variables should be considered as categorical? By default, value is NULL, and then categorical variables remain in the same approach as continuous ones. If 'X' is a data frame, option can be set to "all", in which case the model will automatically identify categorical variables and will use a different scheme for growing trees using these variables (see the Details section). If 'X' is a matrix, one has to set a vector containing subscripts of categorical variables. For example, if feature 1 and feature 2 are categorical, then categoricalvariablesidx = c(1,2). Note that using formula will automatically build dummies and throw them to the model. Current engine for categorical features in random uniform forests does not use dummies and is also designed to work with variable that take discrete values. Note that assessing categorical variable increases the computation time.
 	}
 	\item{na.action}{
-	    how to deal with NA data? By default, na.action = "fastImpute", using rough replacement with median, mean or most frequent values. If speed is not required, na.action = "accurateImpute", can lead to better results using model to impute NA values. na.action = "omit", just omit NA values and it's the only option when using formula. Note that many, accurate and fast, models (softImpute, missMDA, missForest, Amelia, ...) are available on CRAN to impute missing data. Note that "accurateImpute" calls the \code{\link{fillNA2.randomUniformForest}} function, hence it is recommended to impute data outside of the model, especially  for large datasets.
+	    how to deal with NA data? By default, na.action = "veryFastImpute", using rough replacement with median, mean or most frequent values. If speed is not required, na.action = "accurateImpute", can lead to better results using model to impute NA values. na.action = "omit", just omit NA values and it's the only option when using formula. Note that many, accurate and fast, models (softImpute, missMDA, missForest, Amelia, ...) are available on CRAN to impute missing data. Note that "accurateImpute" calls the \code{\link{fillNA2.randomUniformForest}} function, hence it is recommended to impute data outside of the model, especially  for large datasets.
 	}
 	\item{logX}{
 	     applies logarithm transformation to all predictors whose values are strictly positive, and ignores the others.
@@ -246,6 +248,10 @@ Others differences also appear at the node level. Like Random Forests, classific
   \item{y }{training responses.}
   \item{variablesNames}{vector of variables names.}
   \item{call }{the original call to \code{\link{randomUniformForest}}.}
+}
+
+\note{
+- About Breiman's bounds: In classification, Breiman's bound should act as an upper bound; if not then overfitting is likely to happen.  A special case where the first Breiman's bound does not work is when classes are imbalanced. In such case, the second bound can be used since it overrides imbalanced classes and is the \emph{upper bound of prediction error}. It could be loose but, if there are enough trees and data, will be strongly reduced using options. The estimate of theoretical prediction error of the forest (and the upper bound) is not a bound of test (mean squared) error.
 }
 
 \references{

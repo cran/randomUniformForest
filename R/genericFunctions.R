@@ -108,7 +108,6 @@ which.is.factor <- function(X, maxClasses = floor(0.01*min(3000, nrow(X))+2), co
 	
 	for (j in 1:p) 
 	{ 
-		flag = FALSE
 		uniqueValues = unique(X[,j])
 		countValues <- length(uniqueValues)
 				
@@ -121,24 +120,8 @@ which.is.factor <- function(X, maxClasses = floor(0.01*min(3000, nrow(X))+2), co
 			checkNA = which(is.na(XLevels))
 			if (length(checkNA) > 0) { XLevels =  XLevels[-checkNA] }
 			
-			factorAsNumeric <- rmNA(as.numeric(XLevels))
-			
-			if (length(factorAsNumeric) == 0) { flag = TRUE }
-			else
-			{
-				if (!is.double(factorAsNumeric))
-				{ 
-					if ( (max(factorAsNumeric) - min(factorAsNumeric)) == (countValues - 1) )	{	flag  = TRUE  }
-					
-					if (countValues <= maxClasses) 	{  flag = TRUE }
-				}
-			}			
-						
-			if (flag) 
-			{
-				if (count) { values[j] = countValues }
-				else {  values[j] = 1 	}	
-			}
+			if (count) { values[j] = countValues }
+			else {  values[j] = 1 	}	
 		}
 		else
 		{
@@ -162,7 +145,7 @@ which.is.factor <- function(X, maxClasses = floor(0.01*min(3000, nrow(X))+2), co
 # MATRIX
 factor2matrix = function(X, threads = "auto")
 {
-	if (is.factor(X) | is.vector(X))
+	if (is.factor(X) || is.vector(X))
 	{ return(as.true.matrix(factor2vector(X)$vector)) }
 	else
 	{
@@ -179,7 +162,6 @@ factor2matrix = function(X, threads = "auto")
 		}
 		else
 		{
-			#require(parallel)	
 			max_threads = detectCores(logical = FALSE)	
 			
 			if (threads == "auto")
@@ -197,7 +179,6 @@ factor2matrix = function(X, threads = "auto")
 				}
 			}
 			
-			#require(doParallel)				
 			Cl = makePSOCKcluster(threads, type = "SOCK")
 			registerDoParallel(Cl)
 			chunkSize  <-  ceiling(np[2]/getDoParWorkers())
@@ -264,7 +245,7 @@ rmNA = function(X)
 	else { return(X) }
 }
 
-NATreatment <- function(X, Y, na.action = c("fastImpute", "accurateImpute", "omit"), regression = TRUE)
+NATreatment <- function(X, Y, na.action = c("veryFastImpute", "fastImpute", "accurateImpute", "omit"), regression = TRUE)
 {
 	p = ncol(X)
 	featuresWithNAOnly = which(NAFeatures(X) == 1)
@@ -277,15 +258,15 @@ NATreatment <- function(X, Y, na.action = c("fastImpute", "accurateImpute", "omi
 	NAvalues = which(is.na(X), arr.ind = TRUE)
 	NAInputs = NAvalues[,1]
 	matchNA = (length(NAInputs) > 0)		
-	if ( (length(unique(NAInputs)) > (nrow(X) - 30)) & (na.action[1] == "omit") ) 
+	if ( (length(unique(NAInputs)) > (nrow(X) - 30)) && (na.action[1] == "omit") ) 
 	{ stop("Too much missing values in data. Please impute missing values in order to learn the data.\n") }		
 	if (is.factor(Y)) levelsY = levels(Y)
-	if (!regression & !is.factor(Y) ) { Y = as.factor(Y); levelsY = levels(Y) }	
+	if (!regression && !is.factor(Y) ) { Y = as.factor(Y); levelsY = levels(Y) }	
 	
 	NALabels = which(is.na(Y))
 	matchNALabels = (length(NALabels) > 0)		
-	if ( (length(NALabels) > (length(Y) - 30)) & (na.action[1] == "omit") )	{ stop("Too much missing values in responses.\n") }			
-	if (matchNA | matchNALabels)
+	if ( (length(NALabels) > (length(Y) - 30)) && (na.action[1] == "omit") )	{ stop("Too much missing values in responses.\n") }			
+	if (matchNA || matchNALabels)
 	{
 		if (!is.null(Y))
 		{
@@ -302,7 +283,7 @@ NATreatment <- function(X, Y, na.action = c("fastImpute", "accurateImpute", "omi
 			}
 			else
 			{
-				if (matchNALabels & matchNA) {	rmRows = unique(c(NAInputs, NALabels))	}
+				if (matchNALabels && matchNA) {	rmRows = unique(c(NAInputs, NALabels))	}
 				else
 				{
 					rmRows = NULL
@@ -437,7 +418,7 @@ fillWith <- function(X, toPut = "NA")
 {
 	for (j in 1:ncol(X))
 	{ 
-		if ( is.factor(X[,j]) | is.character(X[,j]) )
+		if ( is.factor(X[,j]) || is.character(X[,j]) )
 		{
 			X[,j]= as.character(X[,j])
 			otheridx = which(X[,j] == "")
@@ -454,13 +435,19 @@ fillWith <- function(X, toPut = "NA")
 	return(X)
 }
 
-na.impute <- function(X, type = c("fastImpute", "accurateImpute"))
+na.impute <- function(X, type = c("veryFastImpute", "fastImpute", "accurateImpute"))
 {
-	if (type[1] == "fastImpute")
-	{	return(na.replace(X, fast = TRUE))	}
+	if (type[1] != "accurateImpute")
+	{	
+		if (type[1] == "veryFastImpute")
+		{	return(na.replace(X, fast = TRUE))	}
+		else
+		{ 	return(na.replace(X, fast = FALSE))	}
+	}
 	else
 	{ 	return(fillNA2.randomUniformForest(X)) 	}
 }
+
 
 
 # sample replacement (good and automatic, but prefere na.impute for accuracy)
@@ -514,7 +501,6 @@ parallelNA.replace <- function(X, threads = "auto", parallelPackage = "doParalle
 	# code parallelization
 	{
 		export = "na.replace"	
-		#require(parallel)		
 		max_threads = detectCores(logical = FALSE)		
 		if (threads == "auto")
 		{	
@@ -534,7 +520,6 @@ parallelNA.replace <- function(X, threads = "auto", parallelPackage = "doParalle
 		}
 				
 		{
-			#require(doParallel)			
 			Cl = makePSOCKcluster(threads, type = "SOCK")
 			registerDoParallel(Cl)
 		}
@@ -553,7 +538,7 @@ pseudoNAReplace = function(X, toGrep = "NA")
 	p =ncol(X)
 	for (j in 1:p)
 	{
-		if( ( is.character(X[,j]) | is.factor(X[,j]) ) )
+		if( ( is.character(X[,j]) || is.factor(X[,j]) ) )
 		{
 			X[,j] = as.character(X[,j])
 			idx = which(X[,j] == toGrep)
@@ -696,7 +681,7 @@ mergeLists <- function(X, Y, add = FALSE, OOBEval = FALSE)
 					}
 					else
 					{	
-						if ( (is.null(X[[i]])) & (is.null(Y[[i]])) ) { Z[[i]] = NULL }
+						if ( (is.null(X[[i]])) && (is.null(Y[[i]])) ) { Z[[i]] = NULL }
 						else {	Z[[i]] = c(X[[i]],Y[[i]])	}
 					}
 				}
@@ -705,7 +690,7 @@ mergeLists <- function(X, Y, add = FALSE, OOBEval = FALSE)
 					if (is.matrix(X[[i]])) 	{	Z[[i]] = rbind(X[[i]],Y[[i]])  }
 					else 
 					{		
-						if ( (is.null(X[[i]])) & (is.null(Y[[i]])) ) { Z[[i]] = NULL }
+						if ( (is.null(X[[i]])) && (is.null(Y[[i]])) ) { Z[[i]] = NULL }
 						else {	Z[[i]] = c(X[[i]],Y[[i]])	}					
 					}
 				}
@@ -778,7 +763,7 @@ insert.in.vector = function(X, new.X, idx)
 
 insert.in.vector2 = function(X,new.X, idx)
 {
-	if  ( (length(idx) == 0) | (length(new.X) == 0) )
+	if  ( (length(idx) == 0) || (length(new.X) == 0) )
 	{	return(X)	}
 	else
 	{
@@ -895,7 +880,7 @@ init_values <- function(X, Y = NULL, sample.size = 0.5, data.splitting = "ALL", 
 	{	X = standardize(X)	}
 	
 	if (scaling)
-	{   X = scale(X); if (!is.null(Y) & regression) { Y = scale(Y) }	}
+	{   X = scale(X); if (!is.null(Y) && regression) { Y = scale(Y) }	}
 	
 	
 	if (data.splitting == "train")
@@ -1024,7 +1009,7 @@ getCorr = function(X, mid = 1/3, high= 2/3)
 		var_name2 = var_name[match(sort(unique(var_name[,2])), var_name[,2]),]
 		
 		if (is.vector(var_name2))
-		{ var_name2 = as.matrix(t(var_name2))	}
+		{ var_name2 = as.matrix(t(var_name2)) }
 		
 		if (!is.null(colnames(X))) 
 		{	var_name = cbind(colnames(X)[var_name2[,1]], colnames(X)[var_name2[,2]], var_name2[,3])		}
@@ -1396,7 +1381,7 @@ generic.smoothing.log = function(X, threshold = 0.05, filtering = median ,  k = 
 	for (j in 1:p)
 	{ 
 		min_X = min(X[,j])
-		if ( (max(X[,j]) > 0) & ( min_X < 0) )
+		if ( (max(X[,j]) > 0) && ( min_X < 0) )
 		{	
 			neg.idx = which(X[,j] < 0)
 			pos.idx = which(X[,j] < 0)
@@ -1410,9 +1395,9 @@ generic.smoothing.log = function(X, threshold = 0.05, filtering = median ,  k = 
 		else
 		{	
 			
-			if ( (min(X[,j]) != 0) & (max(X[,j]) != 0) )
+			if ( (min(X[,j]) != 0) && (max(X[,j]) != 0) )
 			{			
-				if ( (min(X[,j]) == 0) | (max(X[,j]) == 0) )
+				if ( (min(X[,j]) == 0) || (max(X[,j]) == 0) )
 				{	Z[,j] = log(smoothing.log(abs(X[,j]), filtering = median,  k = 1))	}
 			}
 		}
@@ -1424,10 +1409,10 @@ generic.smoothing.log = function(X, threshold = 0.05, filtering = median ,  k = 
 
 confusion.matrix = function(predY, Y)
 {
-	if ( (is.vector(predY) & !is.vector(Y)) | (!is.vector(predY) & is.vector(Y)) ) 
+	if ( (is.vector(predY) && !is.vector(Y)) || (!is.vector(predY) && is.vector(Y)) ) 
 	stop("Predictions and responses do not have the same class.")
 	if (length(predY) != length(Y)) stop("Predictions and responses do not have the same length.")
-	if ( (class(Y) == "factor") | (class(predY) == "factor") ) 
+	if (inherits(Y, "factor") || inherits(predY, "factor"))  
 	{  
 		trueClasses = levels(as.factor(Y))
 		predY = as.numeric(predY);  Y = as.numeric(Y)
@@ -1518,14 +1503,11 @@ outputPerturbationSampling = function(Y, whichClass = 1, sampleSize = 1/4, regre
 			
 			
 		randomData = rnorm(length(randomIdx), meanY, 3*sdY)
-		if ( (minY < 0) & (maxY > 0)) 
-		{	Y[randomIdx] =  randomData  }
+		if ( (minY < 0) && (maxY > 0))  Y[randomIdx] = randomData
 				
-		if ( (minY >= 0) & (maxY > 0))
-		{	Y[randomIdx] =  abs(randomData) } 
+		if ( (minY >= 0) && (maxY > 0)) Y[randomIdx] = abs(randomData) 
 		
-		if ( (minY < 0 ) & (maxY <= 0))
-		{	Y[randomIdx] =  -abs(randomData) } 		
+		if ( (minY < 0 ) && (maxY <= 0)) Y[randomIdx] = -abs(randomData) 
 	}
 	else
 	{	
@@ -1546,14 +1528,13 @@ keep.index <- function(X,idx) if (!is.null(dim(X))) { (1:nrow(X))[idx] } else  {
 
 roc.curve <- function(X, Y, classes, positive = classes[2], ranking.threshold = 0, ranking.values = 0, falseDiscoveryRate = FALSE, plotting = TRUE,  printValues = TRUE, Beta = 1)
 {
-	#require(pROC)
 	par(bg = "white")
 	classes = sort(classes)
 	
 	if (length(classes) != 2)
 	{ stop("Please provide two classes for plotting ROC curve.") }
 	
-	if (is.vector(X) & (!is.numeric(X)) & !(is.list(X)) )
+	if (is.vector(X) && (!is.numeric(X)) && !(is.list(X)) )
 	{	X <- vector2factor(X) }
 	
 	if (is.factor(X))
@@ -1561,7 +1542,7 @@ roc.curve <- function(X, Y, classes, positive = classes[2], ranking.threshold = 
 	
 	if (is.list(X))
 	{
-		if (class(X) == "randomUniformForest")
+		if (inherits(X,"randomUniformForest")) # class(X) == "randomUniformForest"
 		{	
 			if (!is.null(X$predictionObject))
 			{	X <- X$predictionObject	}
@@ -1818,7 +1799,7 @@ optimizeFalsePositives = function(X, Y, classes, o.positive = classes[2], o.rank
 	cost = accuracy = expected.matches = AUC = vector()
 	
 	i = 1; n = length(threshold)
-	while( (tmp.AUC < 1) & (tmp.AUC > 0) & (i <= n))
+	while( (tmp.AUC < 1) && (tmp.AUC > 0) && (i <= n))
 	{
 		ROC.object = roc.curve(X, Y, classes, positive = o.positive, ranking.threshold = threshold[i], ranking.values = o.ranking.values, falseDiscoveryRate = o.falseDiscoveryRate, plotting = FALSE)
 		
@@ -1842,12 +1823,18 @@ optimizeFalsePositives = function(X, Y, classes, o.positive = classes[2], o.rank
 
 someErrorType <- function(modelPrediction, Y, regression = FALSE)
 {
-	#require(pROC)	
 	if (regression)
 	{  
 		n = length(Y)
 		MSE <- L2Dist(Y, modelPrediction)/n
-		return(list(error = MSE, meanAbsResiduals = sum(abs(modelPrediction - Y))/n, Residuals = summary(modelPrediction - Y), percent.varExplained = max(0, 100*round(1 - MSE/var(Y),4)) ) )
+		return(
+			list(
+				error = MSE, 
+				meanAbsResiduals = sum(abs(modelPrediction - Y))/n, 
+				Residuals = summary(modelPrediction - Y), 
+				percent.varExplained = max(0, 100*round(1 - MSE/var(Y),4)) 
+			) 
+		)
 	}
 	else
 	{  
@@ -1882,6 +1869,16 @@ fScore <- function(confusionMatrix, Beta = 1)
 	return( (1 + Beta^2)*(precision*recall)/(Beta^2*precision + recall) )
 }
 
+kappaStat <- function(confusionMatrix)
+{
+	n = sum(confusionMatrix[,-3])
+	p1.all = sum(confusionMatrix[1,])/n; pall.1 = sum(confusionMatrix[,1])/n;
+	p2.all = sum(confusionMatrix[2,])/n; pall.2 = sum(confusionMatrix[,2])/n; 
+	Pr_a = sum(diag(confusionMatrix[,-3]))/n
+	Pr_e = p1.all*pall.1 + p2.all*pall.2
+	return((Pr_a - Pr_e )/(1 - Pr_e))
+}
+
 expectedSquaredBias <- function(Y, Ypred)  (mean(Y - mean(Ypred)))^2
 
 randomWhichMax <- function(X)
@@ -1891,7 +1888,7 @@ randomWhichMax <- function(X)
     if (length(Y) == 1) { Y } else  { sample(Y,1) } 
 }
 	
-# import
+# import : gtools (hence binsearch function) no more available for one linux distribution.
 estimaterequiredSampleSize <- function(accuracy, dOfAcc) -log( dOfAcc/2)/(2*(1- accuracy)^2)  
 estimatePredictionAccuracy <- function(n,  dOfAcc = 0.01)
 {
@@ -1901,16 +1898,16 @@ estimatePredictionAccuracy <- function(n,  dOfAcc = 0.01)
 	return(accuracy)
 }
 
-subEstimaterequiredSampleSize <- function(accuracy, n) pbinom( floor(n*0.5)-floor(n*(1- accuracy)), size = floor(n), prob=0.5) 
-binomialrequiredSampleSize <- function(accuracy, dOfAcc) 
-{ 
-  #require(gtools)
+# subEstimaterequiredSampleSize <- function(accuracy, n) pbinom( floor(n*0.5)-floor(n*(1- accuracy)), size = floor(n), prob=0.5) 
+# binomialrequiredSampleSize <- function(accuracy, dOfAcc) 
+#{ 
+  ##require(gtools)
 	
-  r <- c(1,2*estimaterequiredSampleSize(accuracy, dOfAcc))
-  v <- binsearch( function(n) { subEstimaterequiredSampleSize(accuracy, n) - dOfAcc }, range = r, lower = min(r), upper = max(r))
+  # r <- c(1,2*estimaterequiredSampleSize(accuracy, dOfAcc))
+  # v <- binsearch( function(n) { subEstimaterequiredSampleSize(accuracy, n) - dOfAcc }, range = r, lower = min(r), upper = max(r))
 
-  return(v$where[[length(v$where)]])
-}
+  # return(v$where[[length(v$where)]])
+# }
 # End of import
 
 setManyDatasets <- function(X, n.times, dimension = FALSE, replace = FALSE, subsample = FALSE, randomCut = FALSE)
@@ -1934,7 +1931,7 @@ setManyDatasets <- function(X, n.times, dimension = FALSE, replace = FALSE, subs
 		else { idx = 1:n }
 		cuts = cut(idx, n.times, labels = FALSE)
 		n.times = 1:n.times			
-		if (replace & !subsample) 
+		if (replace && !subsample) 
 		{ 
 			idx = sort(sample(idx, n, replace = replace))
 			for (i in seq_along(n.times))
@@ -2121,7 +2118,6 @@ bCI <- function(X, f = mean, R = 100, conf = 0.95, largeValues = TRUE, skew = TR
 	if (is.matrix(X)) { n = nrow(X) } else { n =length(X) }
 	
 	{
-		#require(parallel)	
 		max_threads = detectCores()
 		
 		if (threads == "auto")
@@ -2136,8 +2132,6 @@ bCI <- function(X, f = mean, R = 100, conf = 0.95, largeValues = TRUE, skew = TR
 		}
 		
 		{
-			#require(doParallel)
-			
 			Cl = makePSOCKcluster(threads, type = "SOCK")
 			registerDoParallel(Cl)
 		}
@@ -2215,7 +2209,7 @@ OOBquantiles <- function(object, conf = 0.95, plotting = TRUE, gap = 10, outlier
 		{
 			highOutlierIdx =  which(Y > quantile(Y,0.95))
 			lowOutlierIdx =  which(Y < quantile(Y,0.05))
-			if (length(highOutlierIdx) > 0 | length(lowOutlierIdx) > 0) 
+			if (length(highOutlierIdx) > 0 || length(lowOutlierIdx) > 0) 
 			{	predictedObject2 = predictedObject2[-c(lowOutlierIdx,highOutlierIdx),]	}
 		}		
 		predictedObject2 = predictedObject2[seq(1, nrow(predictedObject2), by = gap), ]
@@ -2289,7 +2283,9 @@ biasVarCov <- function(predictions, target, regression = FALSE, idx = 1:length(t
 	noise = ifelse(length(idx) > 1, var(target[idx]), (target[idx] - mean(target))^2)
 	squaredBias = ifelse(length(idx) > 1,(mean(predictions[idx]) - mean(target[idx]))^2,(mean(predictions[idx]) - target[idx])^2) 
 	predictionsVar = ifelse(length(idx) > 1, var(predictions[idx]), (predictions[idx] - mean(predictions))^2)
-	predictionsTargetCov = ifelse(length(idx) > 1,cov( cbind(predictions[idx], target[idx]) )[1,2], mean( (predictions[idx] - mean(predictions) ) *(target[idx] - mean(target) )))
+	predictionsTargetCov = ifelse(length(idx) > 1,
+	cov( cbind(predictions[idx], target[idx]) )[1,2], 
+	mean( (predictions[idx] - mean(predictions) ) *(target[idx] - mean(target))))
 	
 	MSE = noise + squaredBias + predictionsVar - 2*predictionsTargetCov
 	
@@ -2341,7 +2337,7 @@ predictionvsResponses <- function(predictions, responses, plotting = TRUE)
 	print(summary(linMod))
 	if (plotting)
 	{
-		plot(predictions, responses,  xlab = "Predictions", ylab = "Responses")
+		plot(predictions, responses,  xlab = "Predictions", ylab = "Responses", lwd = 2.5)
 		abline(a = linMod$coef[[1]] , b = linMod$coef[[2]], col="green",lwd = 2)
 		grid()
 	}	
@@ -2356,12 +2352,12 @@ rm.tempdir <- function()
 	setwd(path)
 }
 
+
 model.stats <- function(predictions, responses, regression = FALSE, OOB = FALSE, plotting = TRUE)
 {
-    
-	if (class(predictions) == "randomUniformForest")
+    if (inherits(predictions, "randomUniformForest"))  # class(predictions) == "randomUniformForest"
 	{
-		if (OOB & is.null(predictions$forest$OOB.predicts)) { stop("no OOB predictions in the model.") }
+		if (OOB && is.null(predictions$forest$OOB.predicts)) { stop("no OOB predictions in the model.") }
 		object = predictions
 		if (OOB) { 	predictions = predictions$forest$OOB.predicts }
 		else { predictions = predictions$predictionObject$majority.vote }
@@ -2376,7 +2372,7 @@ model.stats <- function(predictions, responses, regression = FALSE, OOB = FALSE,
 	#require(pROC)
 	if (OOB)  { cat("\nOOB evaluation") }
 	else { cat("\nTest set") }
-	if (is.factor(predictions) | !regression)
+	if (is.factor(predictions) || (!regression))
 	{
 		uniqueResponses = sort(unique(responses))
 		if (!is.factor(responses)) { responses = as.factor(responses) }
@@ -2406,7 +2402,9 @@ model.stats <- function(predictions, responses, regression = FALSE, OOB = FALSE,
 		}
 		cat("\nGeometric mean:", round(gMean(confMat),4),"\n")
 		if (nrow(confMat) > 2)
-		{ cat("Geometric mean of the precision:", round(gMean(confMat, precision = TRUE),4),"\n") }	
+		{ cat("Geometric mean of the precision:", round(gMean(confMat, precision = TRUE),4),"\n") }
+		else
+		{ cat("Kappa statistic:", round(kappaStat(confMat), 4),"\n")	}
 		
 		return(list(confusionMatrix = confMat, testError = testError, AUC = if (length(uniqueResponses) == 2) { AUC } else { "none" }, 
 		AUPR = if (length(uniqueResponses) == 2) { AUPR } else { "none" }))
@@ -2424,11 +2422,19 @@ model.stats <- function(predictions, responses, regression = FALSE, OOB = FALSE,
 		cat("Mean of absolute residuals: ", round(L1Dist(predictions, responses)/n, 6), "\n", sep="")
 		cat("\nLinear modelling:")
 		predictionvsResponsesLinMod = predictionvsResponses(predictions, responses, plotting = plotting)
+		dev.new()
+		plot(responses,responses - predictions, xlab = "Responses", ylab = "Residuals", lwd = 2.5)
+		abline(h = 0, col = "green", lwd = 2)
+		grid()
+		dev.new()
+		plot(density(responses - predictions), lwd = 3, main = "Density of residuals")
+		cat("Please use R menu to vertically tile windows and see all plots.\n")
 		outputLM = summary(predictionvsResponsesLinMod)
 		
-		return(list(MSE = MSE, Residuals = Residuals, predictionvsResponsesLinMod = outputLM ))
+		return(list(MSE = MSE, Residuals = Residuals))
 	}
 }
+
 
 generic.cv <- function(X, Y, nTimes = 1, k = 10, seed = 2014, regression = TRUE, genericAlgo = NULL, specificPredictFunction = NULL, 
 metrics = c("none", "AUC", "precision", "F-score", "L1", "geometric mean", "geometric mean (precision)"))
@@ -2600,19 +2606,47 @@ timeStampCore <- function(stamp, n = NULL, begin = 0, end = NULL, windowLength =
 	return(Z)	
 }
 
+modelingResiduals <- function(object, X, Y, xtest = NULL, f = randomUniformForest, ...)
+{
+	if ((inherits(object, "randomUniformForest")[1]) || (inherits(object,"randomUniformForest.formula")[1]))
+	# ((class(object)[1] == "randomUniformForest") || (class(object)[1] == "randomUniformForest.formula"))
+	{
+		if (is.null(object$forest$OOB.predicts)) { stop("OOB predictions are needed.") }
+		if (!object$forest$regression) { stop("The function works only for regression.") }
+		residualsOfObject = object$forest$OOB.predicts - Y
+	}
+	else
+	{
+		if (is.null(object$predicted)) { stop("OOB predictions are needed.") }
+		if (object$type != "regression") { stop("The function works only for regression.") }
+		residualsOfObject = object$predicted - Y
+	}
+	
+	objectForResiduals = f(X, residualsOfObject, xtest = xtest, ...)
+
+	return(objectForResiduals)
+}
+
 reSMOTE <- function(X, Y, majorityClass = 0, increaseMinorityClassTo = NULL, 
 conditionalTo = NULL,
 samplingFromGaussian = FALSE,  
 samplingMethod = c("uniform univariate sampling", "uniform multivariate sampling", "with bootstrap"),
+maxClasses = max(10, which.is.factor(X[,, drop = FALSE], count = TRUE)), 
 seed = 2014)
 {
 	n = nrow(X)
-	if (is.data.frame(X)) stop("X must be a matrix.\n")
+	flag = FALSE
+	if (is.data.frame(X)) 
+	{
+		factorsIdx = which.is.factor(X, maxClasses = maxClasses)
+		XX = X
+		X = factor2matrix(X)
+		flag = TRUE
+	}
 	if (n != length(Y)) stop("Data and responses don't have same size.\n")
 	
 	majorityIdx = NULL
-	for (i in seq_along(majorityClass))
-	{ 	majorityIdx = c(majorityIdx, which(Y == majorityClass[i])) }
+	for (i in seq_along(majorityClass))	{ 	majorityIdx = c(majorityIdx, which(Y == majorityClass[i])) }
 	percentMinority = 1 - length(majorityIdx)/n
 	minorityIdx = (1:n)[-majorityIdx]
 	
@@ -2642,7 +2676,7 @@ seed = 2014)
 	newX = do.call(rbind, XXY)
 	rm(XXY)
 	newXY = cbind(newX, rep(Y[minorityIdx], iterations))
-	p= ncol(newXY)
+	p = ncol(newXY)
 	colnames(newXY)[p] = "Value"
 	if (!is.numeric(Y))
 	{	
@@ -2653,15 +2687,40 @@ seed = 2014)
 		newXY = as.data.frame(newXY)
 		newXY[,p] = as.factor(currentValuesOfY)
 		colnames(newXY)[p] = "Class"
-		X = as.data.frame(X)
-		XY = (cbind(X,Y))
+		XY = cbind(XX,Y)
 		colnames(XY)[p] = "Class"
-		ZY  = rbind(XY, newXY)
+		
+		if (flag) 
+		{
+			for (j in 1:(p-1))
+			{
+				if (is.factor(XX[,j]))
+				{
+					uniqueValues = sort(unique(newXY[,j]))
+					newXY[,j] = as.factor(newXY[,j])
+					levels(newXY[,j]) = levels(XX[,j])[uniqueValues]
+				}			
+			}		
+		}
+		
+		ZY = rbind(XY, newXY)
 	}
 	else
 	{
-		XY = (cbind(X,Y))
+		XY = cbind(X,Y)
 		colnames(XY)[p] = "Value"
+		if (flag) 
+		{
+			for (j in 1:(p-1))
+			{
+				if (is.factor(XX[,j]))
+				{
+					uniqueValues = sort(unique(newXY[,j]))
+					newXY[,j] = as.factor(newXY[,j])
+					levels(newXY[,j]) = levels(XX[,j])[uniqueValues]
+				}			
+			}		
+		}
 		ZY  = rbind(XY, newXY)	
 	}
 	cat("Proportion of examples of minority class in the original sample: ", round(100*(length(minorityIdx))/n, 2), "%.\n", sep="")
@@ -2669,5 +2728,135 @@ seed = 2014)
 	cat(nrow(ZY), "instances in the new sample.\n")
 	
 	return(ZY)
-} 
+}
+
+OOBVotesScale <- function(X) t(apply(X, 1, function(Z) 1/sum(Z)*Z))
+
+# import 
+subsampleFile <- function(readFile = infile, writeFile = outfile, sample.size = NULL, header = TRUE) 
+{
+	# modified code from original function of Norman Matloff.
+	# original code : http://heather.cs.ucdavis.edu/Thinning.R
+	if (is.null(readFile)) { stop("Please provide the name of the file to read.") }
+	else  { infile = readFile }
+	   
+	if (is.null(writeFile)) { stop("Please provide the name of the file to write.") }
+	else  { outfile = writeFile }
+
+	if (is.null(sample.size)) { stop("Please provide the percentage of samples.") }
+	else  
+	{ 	k = round(1/sample.size, 0)	}  
+    
+	ci <- file(infile, "r")
+    co <- file(outfile, "w")
+   
+    if (header) 
+    {
+		hdr <- readLines(ci, n = 1)
+		writeLines(hdr, co)
+    }
+	
+	recnum = 0
+	numout = 0
+   
+	while (TRUE) 
+	{
+		inrec <- readLines(ci, n = 1)
+		if (length(inrec) == 0) 
+		{  # end of file?
+			close(co) 
+			cat("Number of lines sampled:\n")
+			return(numout)
+		}
+		recnum <- recnum + 1
+		if (recnum %% k == 0) 
+		{
+			numout <- numout + 1
+			writeLines(inrec, co)
+		}
+   	}
+}
+
+copulaLike <- function(Xtest, importanceObject, whichFeatures = NULL, 
+whichOrder = c("first", "second", "all"), 
+maxClasses = max(10, which.is.factor(Xtest[,, drop = FALSE], count = TRUE)),
+outliersFilter = FALSE,
+bg = "grey")
+{
+	if (is.null(whichFeatures) || (whichFeatures[1] == "all"))
+	{	
+		features = 1:ncol(Xtest)
+		featuresNames = colnames(Xtest) 
+	}
+	p = length(features)
+	pD = vector('list', p)
+	featuresIdx = idx = NULL
+	
+	if (is.character(features[1]))
+	{
+		featuresNames = features
+		newFeatures = vector(length = p)
+		for (k in 1:p)	{	newFeatures[k] = which(colnames(Xtest) == features[k])	}
+		features = newFeatures
+	}
+	else
+	{	featuresNames = colnames(Xtest)[newFeatures] }
+	
+	newXtest = factor2matrix(Xtest)
+	for (j in 1:p)
+	{
+		pD[[j]] <- partialDependenceOverResponses(newXtest, importanceObject, whichFeature = features[j], 
+		whichOrder = whichOrder, outliersFilter = outliersFilter, plotting = FALSE, 
+		followIdx = TRUE, maxClasses = maxClasses)
+		featuresIdx = c(featuresIdx, rep(features[j], nrow(pD[[j]]$partialDependenceMatrix)))
+		idx = c(idx, pD[[j]]$idx)
+		pD[[j]] = pD[[j]]$partialDependenceMatrix
+	}
+
+	bigDependenceMatrix = do.call(rbind, pD)
+	bigDependenceMatrix = cbind(bigDependenceMatrix, featuresIdx, idx)
+			
+	uniqueIdx = unique(bigDependenceMatrix[,4])
+	n = length(uniqueIdx)
+	newBigDependenceMatrix = matrix(NA, n, p+1)
+	
+	if (is.numeric(bigDependenceMatrix[, 2])) {	f = mean } 
+	else  {  f = function(X) names(which.max(table((X)))); flag = TRUE }
+	
+	for (i in 1:n)
+	{
+		newIdx = which(bigDependenceMatrix[,4] == uniqueIdx[i])
+		newBigDependenceMatrix[i,1] = f(bigDependenceMatrix[newIdx, 2])
+		newBigDependenceMatrix[i, 1 + bigDependenceMatrix[newIdx,3]] =  bigDependenceMatrix[newIdx, 1]
+	}
+	
+	colnames(newBigDependenceMatrix) = c("predictions", featuresNames)
+	rownames(newBigDependenceMatrix) = uniqueIdx
+	
+	factorIdx = which.is.factor(Xtest, maxClasses = maxClasses)
+	if (any(factorIdx == TRUE))
+	{ 
+		newBigDependenceMatrix = as.data.frame(newBigDependenceMatrix)
+		matchFactorIdx = rmNA(match(which(factorIdx == 1), features))
+		if (length(matchFactorIdx) > 0)
+		{
+			for (i in 1:length(matchFactorIdx))
+			{
+				newBigDependenceMatrix[,-1][,features[matchFactorIdx][i]] = 
+				as.factor(newBigDependenceMatrix[,-1][,features[matchFactorIdx][i]])
+				levels(newBigDependenceMatrix[,-1][,features[matchFactorIdx][i]]) = 
+				levels(Xtest[, features[matchFactorIdx][i]])	
+			}
+		}
+	}
+	
+	if (flag)  
+	{ 
+		rmClassPrefix = as.character(newBigDependenceMatrix[,1]) 
+		trueClasses = as.factor(rm.string(rmClassPrefix, "Class "))
+		newBigDependenceMatrix[,1] = trueClasses
+	}
+	
+	return(newBigDependenceMatrix)
+}
 # END OF FILE

@@ -2,8 +2,8 @@ Package: randomUniformForest
 Type: Package
 Title: Random Uniform Forests for Classification, Regression and
         Unsupervised Learning
-Version: 1.1.5
-Date: 2015-02-16
+Version: 1.1.6
+Date: 2022-05-31
 Author: Saip Ciss
 Maintainer: Saip Ciss <saip.ciss@wanadoo.fr>
 Description: Ensemble model, for classification, regression
@@ -18,13 +18,13 @@ Description: Ensemble model, for classification, regression
 	of variable importance and to allow native distributed and incremental learning.
 License: BSD_3_clause + file LICENSE
 LazyData: yes
-Depends: R (>= 3.0.0)
+Depends: R (>= 4.2.0)
 Imports: methods, Rcpp (>= 0.11.1), parallel, doParallel, iterators,
-        foreach (>= 1.4.2), ggplot2, pROC, gtools, cluster, MASS
+        foreach (>= 1.4.2), ggplot2, pROC, cluster, MASS
 Suggests: R.rsp
 VignetteBuilder: R.rsp
 LinkingTo: Rcpp
-Packaged: 2015-02-16 20:09:27 UTC; zidd
 NeedsCompilation: yes
+Packaged: 2022-06-21 20:49:32 UTC; zidd
 Repository: CRAN
-Date/Publication: 2015-02-16 21:29:00
+Date/Publication: 2022-06-21 21:50:02 UTC

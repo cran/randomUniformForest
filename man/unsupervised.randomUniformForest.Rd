@@ -20,15 +20,19 @@
 	"uniform multivariate sampling", "with bootstrap"),
 	MDSmetric = c("metricMDS", "nonMetricMDS"),
 	proximityMatrix = NULL,
+	fullProximityMatrix = TRUE,
 	sparseProximities = FALSE,
 	outliersFilter = FALSE, 
 	Xtest = NULL, 
 	predObject = NULL, 
-	metricDimension = 2, 
+	metricDimension = 2,
+	distance = c("euclidean", "maximum", "manhattan", "canberra", "binary",
+	"minkowski"),
 	coordinates = c(1,2),
 	bootstrapReplicates = 100,
 	clusters = NULL,
 	maxIters = NULL,
+	nstart = 1,
 	importanceObject = NULL,
 	maxInteractions = 2,
 	reduceClusters = FALSE, 
@@ -72,6 +76,9 @@
 	\item{proximityMatrix}{
 	    proximities matrix, of size 'n x n', can be provided, coming from a previous unsupervised.randomUniformForest object or can be external.
 	}
+	\item{fullProximityMatrix}{
+	    if TRUE, compute the 'n x n' proximities, otherwise compute the 'n x B' ones, where 'B' is the number of trees.
+	}
 	\item{sparseProximities}{
 	    if TRUE, proximities are filled with 1 (which happens when an observation falls in the same terminal node than another, whatever the number of times is) and 0 (an observation does not fall in any terminal node than another). If FALSE, Breiman's formulation is used. Depending on the data, both can be useful.		
 	}
@@ -88,6 +95,9 @@
 	    for the MDS or spectral process, the dimension of the final representation. By default, a 'n x p' matrix (or data frame) used for unsupervised learning will end with a 'n x 2' matrix, with decorrelated components, that will be clustered. Using a low dimension avoids issues with large data sets, especially when combining two unsupervised objects. Usually a 'metricDimension' higher than 2 is useless except for spectral decomposition,
 		where its value should be assessed.
 	}
+	\item{distance}{
+		the chosen distance from which proximities will be transformed if MDS... is used as 'endModel'.
+	}
 	\item{coordinates}{
 	    MDS (or eigenvectors of the spectral decomposition) coordinates to plot. First and second are usually enough since they concentrate almost all the information and are not correlated. In the Spectral case, coordinates should be chosen with care (using the plot method to assess them) since they change a lot the representation.
 		Note that number of chosen coordinates should be small in order to avoid long computation for large datasets.
@@ -100,6 +110,9 @@
 	}
 	\item{maxIters}{
 	    number of iterations of the K-means algorithm. See kmeans() function.
+	}
+	\item{nstart}{
+	    see kmeans() function.
 	}
 	\item{importanceObject}{
 	    if a object of class importance is provided and 'baseModel' option is 'importanceThenDistance', then the dissimilarity matrix will be computed using it. Useful if current data are not enough clean and one has a former trustfully randomUniformForest object. Note that dissimilarity matrix based on importance objects are recommended only when 'proximity' or 'proximityThenDistance' have some issues.

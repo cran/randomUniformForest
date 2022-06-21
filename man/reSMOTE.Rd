@@ -16,6 +16,8 @@ reSMOTE(X, Y,
 	samplingFromGaussian = FALSE,  
 	samplingMethod = c("uniform univariate sampling", 
 		"uniform multivariate sampling", "with bootstrap"),
+	maxClasses = max(10, which.is.factor(X[,, drop = FALSE], 
+	count = TRUE)), 
 	seed = 2014)
 }
 
@@ -42,6 +44,9 @@ reSMOTE(X, Y,
 	}
 	\item{samplingMethod}{
 	  which method to use for sampling from data? Note that one may use any of the two first methods with the 'with bootstrap' option, for example 'samplingMethod = c("uniform univariate sampling",  "with bootstrap")' or 'samplingMethod = "uniform univariate sampling"'.
+	}
+	\item{maxClasses}{
+	  To be documented.
 	}
 	\item{seed}{
 	  seed to use when sampling distribution.

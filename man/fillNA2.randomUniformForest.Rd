@@ -14,7 +14,8 @@ fillNA2.randomUniformForest(X, Y = NULL, ntree = 100,
 	nodesize = 10,
 	categoricalvariablesidx = NULL,
 	NAgrep = "", 
-	maxClasses = floor(0.01*min(3000, nrow(X))+2),
+	maxClasses = max(10, which.is.factor(X[, , drop = FALSE], count = TRUE)),
+	na.action = c("accurateImpute", "fastImpute", "veryFastImpute"),
 	threads = "auto",
 	\dots)
 }
@@ -44,6 +45,9 @@ fillNA2.randomUniformForest(X, Y = NULL, ntree = 100,
 }
 \item{maxClasses}{
 	maximal number of classes for a categorical variable. Note that the function will look first the structure of the dataset to detect categorical variables. One  has to take care of categories with many classes but not defined as factors. Hence in case of doubt, use a large value of 'maxClasses' is preferable. 
+}
+\item{na.action}{
+	Type of imputation to make.
 }
 \item{threads}{
     how many logical cores to complete data. Default values will let algorithm use all available cores.  
